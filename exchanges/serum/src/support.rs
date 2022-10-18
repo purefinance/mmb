@@ -28,7 +28,7 @@ use mmb_core::exchanges::traits::{
 };
 use mmb_core::misc::time::time_manager;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{ExchangeEvent, TradeId};
+use mmb_domain::events::{ExchangeEvent, Trade, TradeId};
 use mmb_domain::exchanges::commission::Percent;
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, SpecificCurrencyPair};
 use mmb_domain::order::fill::{EventSourceType, OrderFillType};
@@ -64,12 +64,16 @@ impl Support for Serum {
         Ok(())
     }
 
+    fn on_connected(&self) -> Result<()> {
+        Ok(())
+    }
+
     fn on_disconnected(&self) -> Result<()> {
         // Not needed for implementation Serum
         Ok(())
     }
 
-    fn set_send_websocket_message_callback(&self, callback: SendWebsocketMessageCb) {
+    fn set_send_websocket_message_callback(&mut self, callback: SendWebsocketMessageCb) {
         self.rpc_client
             .set_send_websocket_message_callback(callback);
     }
@@ -337,11 +341,13 @@ impl Serum {
     fn handle_order_trade(&self, fill_data: &OrderFillData) {
         (self.handle_trade_callback)(
             fill_data.currency_pair,
-            fill_data.trade_id.clone(),
-            fill_data.price,
-            fill_data.fill_amount,
-            fill_data.order_side,
-            fill_data.date,
+            Trade {
+                trade_id: fill_data.trade_id.clone(),
+                price: fill_data.price,
+                quantity: fill_data.fill_amount,
+                side: fill_data.order_side,
+                transaction_time: fill_data.date,
+            },
         );
     }
 }

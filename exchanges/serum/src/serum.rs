@@ -50,7 +50,9 @@ use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     RestFillsType, WebSocketOptions,
 };
-use mmb_core::exchanges::rest_client::{ErrorHandlerData, ErrorHandlerEmpty, RestClient};
+use mmb_core::exchanges::rest_client::{
+    ErrorHandlerData, ErrorHandlerEmpty, RestClient, RestHeadersEmpty,
+};
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
@@ -144,7 +146,7 @@ pub struct Serum {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
-    pub(super) rest_client: RestClient<ErrorHandlerEmpty>,
+    pub(super) rest_client: RestClient<ErrorHandlerEmpty, RestHeadersEmpty>,
     pub(super) rpc_client: Arc<SolanaClient>,
     pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
     pub network_type: NetworkType,
@@ -175,15 +177,18 @@ impl Serum {
             order_created_callback: Box::new(|_, _, _| {}),
             order_cancelled_callback: Box::new(|_, _, _| {}),
             handle_order_filled_callback: Box::new(|_| {}),
-            handle_trade_callback: Box::new(|_, _, _, _, _, _| {}),
+            handle_trade_callback: Box::new(|_, _| {}),
             unified_to_specific: Default::default(),
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
-            rest_client: RestClient::new(ErrorHandlerData::new(
-                empty_response_is_ok,
-                exchange_account_id,
-                ErrorHandlerEmpty::default(),
-            )),
+            rest_client: RestClient::new(
+                ErrorHandlerData::new(
+                    empty_response_is_ok,
+                    exchange_account_id,
+                    ErrorHandlerEmpty::default(),
+                ),
+                RestHeadersEmpty::default(),
+            ),
             rpc_client: Arc::new(SolanaClient::new(&network_type)),
             markets_data: Default::default(),
             network_type,
@@ -792,7 +797,6 @@ impl Serum {
                             .market_list_url()
                             .try_into()
                             .expect("Unable create url"),
-                        "", // authorization is not required
                         function_name!(),
                         "".to_string(),
                     )
