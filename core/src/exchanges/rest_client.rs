@@ -26,6 +26,20 @@ pub trait RestHeaders {
     ) -> Builder;
 }
 
+#[derive(Default)]
+pub struct RestHeadersEmpty;
+
+impl RestHeaders for RestHeadersEmpty {
+    fn add_specific_headers(
+        &self,
+        builder: Builder,
+        _uri: &Uri,
+        _request_type: RequestType,
+    ) -> Builder {
+        builder
+    }
+}
+
 /// Trait for specific exchange errors handling
 pub trait ErrorHandler: Sized {
     // To find out if there is any special exchange error in a rest outcome
