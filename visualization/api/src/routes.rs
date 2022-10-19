@@ -8,7 +8,7 @@ pub(crate) fn ws_routes(app: &mut actix_web::web::ServiceConfig) {
     app.service(actix_web::web::resource("/hub/").to(ws_client));
 }
 
-#[api_v2_operation(tags(Common))]
+#[api_v2_operation(tags(Common), summary = "Check API health status. `Ok` is 204 code")]
 async fn health() -> Result<NoContent, Error> {
     Ok(NoContent)
 }

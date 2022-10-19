@@ -18,7 +18,7 @@ pub struct GetConfigResponse {
     config: Option<String>,
 }
 
-#[api_v2_operation(tags(Configuration))]
+#[api_v2_operation(tags(Configuration), summary = "Get Trading Bot configuration")]
 pub async fn get(
     settings_service: Data<Arc<SettingsService>>,
 ) -> Result<Json<GetConfigResponse>, AppError> {
@@ -39,7 +39,7 @@ pub async fn get(
     }
 }
 
-#[api_v2_operation(tags(Configuration))]
+#[api_v2_operation(tags(Configuration), summary = "Save Trading Bot configuration")]
 pub async fn save(
     payload: Json<ConfigPayload>,
     settings_service: Data<Arc<SettingsService>>,
@@ -65,7 +65,10 @@ pub struct ValidateResponse {
     error: Option<String>,
 }
 
-#[api_v2_operation(tags(Configuration))]
+#[api_v2_operation(
+    tags(Configuration),
+    summary = "Validate configuration (check valid toml format)"
+)]
 pub async fn validate(payload: Json<ConfigPayload>) -> Json<ValidateResponse> {
     let response = match toml::from_str::<Value>(&payload.config) {
         Ok(_) => ValidateResponse {

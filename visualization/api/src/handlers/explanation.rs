@@ -26,7 +26,7 @@ pub struct ExplanationsGetResponse {
     explanations: Vec<Explanation>,
 }
 
-#[api_v2_operation(tags(Explanation))]
+#[api_v2_operation(tags(Explanation), summary = "Get Explanations")]
 pub async fn get(
     query: web::Query<ExplanationQuery>,
     explanation_service: Data<Arc<ExplanationService>>,
