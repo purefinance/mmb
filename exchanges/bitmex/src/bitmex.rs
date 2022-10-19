@@ -49,13 +49,12 @@ use rust_decimal_macros::dec;
 use serde::Deserialize;
 use sha2::Sha256;
 use std::collections::HashMap;
-use std::fmt;
 use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tinyvec::Array;
 use tokio::sync::broadcast;
-use urlencoding::encode;
+use urlencoding_macro::encode;
 
 #[derive(Default)]
 pub struct ErrorHandlerBitmex;
@@ -362,7 +361,7 @@ impl Bitmex {
     ) -> Result<RestResponse, ExchangeError> {
         let mut builder = UriBuilder::from_path("/api/v1/order");
 
-        builder.add_kv("filter", encode(r#"{"open": true}"#));
+        builder.add_kv("filter", encode!(r#"{"open": true}"#));
         if let Some(pair) = currency_pair {
             builder.add_kv("symbol", self.get_specific_currency_pair(pair));
         }
@@ -452,13 +451,14 @@ impl Bitmex {
         let client_order_id = order.client_order_id();
 
         let mut builder = UriBuilder::from_path("/api/v1/order");
-        let mut filter_string = ArrayString::<64>::new();
-        fmt::write(
-            &mut filter_string,
-            format_args!(r#"{{"clOrdID": "{}"}}"#, client_order_id.as_str()),
-        )
-        .expect("Failed to create filter string");
-        builder.add_kv("filter", encode(filter_string.as_str()));
+        builder.add_kv(
+            "filter",
+            format_args!(
+                "{}{client_order_id}{}",
+                encode!(r#"{"clOrdID": "#),
+                encode!("}"),
+            ),
+        );
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
         let log_args = format!("order {client_order_id}");
@@ -616,7 +616,7 @@ impl Bitmex {
             self.get_specific_currency_pair(position.derivative.currency_pair),
         );
         builder.add_kv("execInst", "Close");
-        builder.add_kv("text", encode("Position Close via API."));
+        builder.add_kv("text", encode!("Position Close via API."));
         if let Some(price_value) = price {
             builder.add_kv("price", price_value);
         }
