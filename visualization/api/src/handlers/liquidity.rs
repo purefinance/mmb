@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 use crate::services::market_settings::MarketSettingsService;
 
-#[api_v2_operation(tags(Liquidity))]
+#[api_v2_operation(tags(Liquidity), summary = "Get supported exchanges")]
 pub async fn supported_exchanges(
     market_settings_service: Data<Arc<MarketSettingsService>>,
 ) -> Json<Value> {
