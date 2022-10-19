@@ -22,7 +22,7 @@ use itertools::Itertools;
 use mmb_core::config::{CONFIG_PATH, CREDENTIALS_PATH};
 use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_core::settings::BaseStrategySettings;
+use mmb_core::settings::DispositionStrategySettings;
 use std::env;
 use strategies::example_strategy::{ExampleStrategy, ExampleStrategySettings};
 

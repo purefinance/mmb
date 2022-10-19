@@ -11,8 +11,8 @@ use mmb_core::infrastructure::spawn_future_ok;
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use mmb_core::settings::BaseStrategySettings;
 use mmb_core::settings::CurrencyPairSetting;
+use mmb_core::settings::DispositionStrategySettings;
 use mmb_domain::order::snapshot::OrderSnapshot;
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
@@ -38,7 +38,7 @@ use mmb_domain::order::snapshot::Amount;
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}
 
-impl BaseStrategySettings for TestStrategySettings {
+impl DispositionStrategySettings for TestStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
         "Binance_0".parse().expect("for testing")
     }

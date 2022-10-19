@@ -3,7 +3,7 @@ use mmb_domain::order::snapshot::Amount;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub trait BaseStrategySettings {
+pub trait DispositionStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId;
     fn currency_pair(&self) -> CurrencyPair;
     fn max_amount(&self) -> Amount;
@@ -13,7 +13,7 @@ pub trait BaseStrategySettings {
 /// Attention! After changing in runtime, you need to save the settings. See issue #146
 /// For the settings to be applied, the trading engine must be restarted after changing the config
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct AppSettings<StrategySettings: BaseStrategySettings + Clone> {
+pub struct AppSettings<StrategySettings: Clone> {
     pub strategy: StrategySettings,
     pub core: CoreSettings,
 }

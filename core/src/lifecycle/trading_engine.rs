@@ -13,7 +13,7 @@ use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::shutdown::ShutdownService;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::settings::BaseStrategySettings;
+use crate::settings::DispositionStrategySettings;
 use crate::settings::{AppSettings, CoreSettings};
 use crate::statistic_service::{StatisticEventHandler, StatisticService};
 use anyhow::Result;
@@ -190,13 +190,13 @@ async fn cancel_opened_orders(
     log::info!("Canceling opened orders finished");
 }
 
-pub struct TradingEngine<StrategySettings: BaseStrategySettings + Clone> {
+pub struct TradingEngine<StrategySettings: Clone> {
     context: Arc<EngineContext>,
     settings: AppSettings<StrategySettings>,
     finished_graceful_shutdown: oneshot::Receiver<ActionAfterGracefulShutdown>,
 }
 
-impl<StrategySettings: BaseStrategySettings + Clone> TradingEngine<StrategySettings> {
+impl<StrategySettings: Clone> TradingEngine<StrategySettings> {
     pub fn new(
         context: Arc<EngineContext>,
         settings: AppSettings<StrategySettings>,
@@ -239,7 +239,10 @@ impl<StrategySettings: BaseStrategySettings + Clone> TradingEngine<StrategySetti
 
     /// Starts `DispositionExecutor` trading pattern assumes that orders will be placed
     /// on the exchange almost all the time
-    pub fn start_disposition_executor(&self, strategy: Box<dyn DispositionStrategy>) {
+    pub fn start_disposition_executor(&self, strategy: Box<dyn DispositionStrategy>)
+    where
+        StrategySettings: DispositionStrategySettings,
+    {
         let ctx = self.context();
         let settings = self.settings();
 
