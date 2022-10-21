@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use itertools::Itertools;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
@@ -170,7 +170,7 @@ impl DispositionExecutor {
 
         loop {
             let event = tokio::select! {
-                event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
+                event_res = self.events_receiver.recv() => event_res.map_err(|e| anyhow!("Error during receiving event in DispositionExecutor::start(). Error: {e}."))?,
                 _ = self.cancellation_token.when_cancelled() => {
                     let _ = self.work_finished_sender.take().ok_or_else(|| anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
                     return Ok(());
