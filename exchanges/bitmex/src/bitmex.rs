@@ -566,7 +566,7 @@ impl Bitmex {
             .filter_map(|variant| match variant {
                 BitmexOrderFill::Trade(trade) => Some(Ok(OrderTrade {
                     exchange_order_id: trade.exchange_order_id,
-                    trade_id: trade.trade_id.into(),
+                    trade_id: trade.trade_id,
                     datetime: trade.timestamp,
                     price: trade.fill_price,
                     amount: trade.fill_amount,
