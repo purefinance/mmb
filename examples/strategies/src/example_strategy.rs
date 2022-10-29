@@ -9,7 +9,7 @@ use mmb_core::explanation::{Explanation, WithExplanation};
 use mmb_core::lifecycle::trading_engine::EngineContext;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use mmb_core::settings::{BaseStrategySettings, CurrencyPairSetting};
+use mmb_core::settings::{CurrencyPairSetting, DispositionStrategySettings};
 use mmb_domain::events::ExchangeEvent;
 use mmb_domain::exchanges::symbol::Round;
 use mmb_domain::market::CurrencyPair;
@@ -32,7 +32,7 @@ pub struct ExampleStrategySettings {
     pub exchange_account_id: ExchangeAccountId,
 }
 
-impl BaseStrategySettings for ExampleStrategySettings {
+impl DispositionStrategySettings for ExampleStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
         self.exchange_account_id
     }

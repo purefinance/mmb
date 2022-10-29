@@ -23,7 +23,7 @@ use futures::FutureExt;
 use mmb_core::config::parse_settings;
 use mmb_core::infrastructure::spawn_future_ok;
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_core::settings::BaseStrategySettings;
+use mmb_core::settings::DispositionStrategySettings;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use strategies::example_strategy::{ExampleStrategy, ExampleStrategySettings};
 
