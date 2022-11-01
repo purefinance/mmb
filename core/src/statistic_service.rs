@@ -252,7 +252,7 @@ impl StatisticEventHandler {
             let event = events_receiver
                 .recv()
                 .await
-                .context("Error during receiving event in DispositionExecutor::start()")?;
+                .context("Error during receiving event in StatisticEventHandler::start()")?;
             // There is no need to stop StatisticEventHandler via CancellationToken now
             // Better to collect all statistics, even events occur during graceful_shutdown
             // But then statistic future will work until tokio runtime is up
