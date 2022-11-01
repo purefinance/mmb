@@ -356,7 +356,7 @@ impl Bitmex {
             (self.handle_trade_callback)(
                 self.get_unified_currency_pair(&record.symbol)?,
                 Trade {
-                    trade_id: record.trade_id.into(),
+                    trade_id: record.trade_id,
                     price: record.price,
                     quantity: record.size,
                     side: record.side,
