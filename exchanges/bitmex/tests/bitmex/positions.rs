@@ -1,5 +1,5 @@
 use crate::bitmex::bitmex_builder::{default_exchange_account_id, BitmexBuilder};
-use crate::bitmex::common::get_bitmex_credentials;
+use crate::bitmex::common::{get_bitmex_credentials, get_position_value_by_side};
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::features::{
     BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
@@ -8,13 +8,13 @@ use mmb_core::exchanges::general::features::{
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
-use std::thread;
+use mmb_utils::logger::init_logger;
 use std::time::Duration;
+use tokio::time::sleep;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_positions() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let (api_key, secret_key) = match get_bitmex_credentials() {
         Ok((api_key, secret_key)) => (api_key, secret_key),
@@ -63,7 +63,7 @@ async fn test_positions() {
         .expect("Create order failed with error:");
 
     // Need wait some time until order will be filled
-    thread::sleep(Duration::from_secs(5));
+    let _ = sleep(Duration::from_secs(5));
 
     let active_positions = bitmex_builder
         .exchange
@@ -73,11 +73,11 @@ async fn test_positions() {
     let position_info = active_positions.first().expect("Have no active positions");
     assert_eq!(
         (
-            position_info.derivative.position,
+            get_position_value_by_side(order_proxy.side, position_info.derivative.position),
             position_info.derivative.currency_pair,
             position_info.derivative.get_side()
         ),
-        (amount.abs(), currency_pair, order_proxy.side)
+        (amount, currency_pair, order_proxy.side)
     );
 
     let closed_position = bitmex_builder

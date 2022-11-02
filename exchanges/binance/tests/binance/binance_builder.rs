@@ -23,24 +23,32 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::binance::common::get_min_amount;
-use crate::binance::common::{default_currency_pair, get_default_price};
+use crate::binance::common::{default_currency_pair, get_prices};
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 
+pub(crate) fn default_exchange_account_id() -> ExchangeAccountId {
+    const EXCHANGE_ACCOUNT_ID: &str = "Binance_0";
+
+    EXCHANGE_ACCOUNT_ID.parse().expect("in test")
+}
+
+#[allow(dead_code)]
 pub struct BinanceBuilder {
-    pub exchange: Arc<Exchange>,
-    pub hosts: Hosts,
-    pub exchange_settings: ExchangeSettings,
-    pub default_price: Price,
-    pub min_amount: Amount,
-    pub tx: broadcast::Sender<ExchangeEvent>,
-    pub rx: broadcast::Receiver<ExchangeEvent>,
+    pub(crate) exchange: Arc<Exchange>,
+    hosts: Hosts,
+    exchange_settings: ExchangeSettings,
+    pub(crate) execution_price: Price,
+    pub(crate) min_price: Price,
+    pub(crate) min_amount: Amount,
+    pub(crate) default_currency_pair: CurrencyPair,
+    tx: broadcast::Sender<ExchangeEvent>,
+    pub(crate) rx: broadcast::Receiver<ExchangeEvent>,
 }
 
 impl BinanceBuilder {
     pub async fn build_account_0() -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
         BinanceBuilder::try_new(
-            exchange_account_id,
+            default_exchange_account_id(),
             CancellationToken::default(),
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -67,9 +75,8 @@ impl BinanceBuilder {
         allowed_create_event_source_type: AllowedEventSourceType,
         allowed_cancel_event_source_type: AllowedEventSourceType,
     ) -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
         BinanceBuilder::try_new(
-            exchange_account_id,
+            default_exchange_account_id(),
             CancellationToken::default(),
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -96,9 +103,8 @@ impl BinanceBuilder {
     }
 
     pub async fn build_account_0_futures() -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
         BinanceBuilder::try_new(
-            exchange_account_id,
+            default_exchange_account_id(),
             CancellationToken::default(),
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -225,31 +231,28 @@ impl BinanceBuilder {
         }
 
         let currency_pair = default_currency_pair();
-        let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
-        let default_price = get_default_price(
-            specific_currency_pair,
-            &hosts,
-            &settings.api_key,
-            exchange_account_id,
-            settings.is_margin_trading,
-        )
-        .await;
-
         let symbol = exchange
             .symbols
             .get(&currency_pair)
-            .expect("can't find symbol")
+            .with_expect(|| format!("Can't find symbol {currency_pair})"))
             .value()
             .clone();
+        let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
+
+        let (execution_price, min_price) = get_prices(
+            specific_currency_pair,
+            &hosts,
+            &settings,
+            &symbol.price_precision,
+        )
+        .await;
 
         let min_amount = get_min_amount(
             specific_currency_pair,
             &hosts,
-            &settings.api_key,
-            default_price,
+            &settings,
+            execution_price,
             &symbol,
-            exchange_account_id,
-            settings.is_margin_trading,
         )
         .await;
 
@@ -257,8 +260,10 @@ impl BinanceBuilder {
             exchange,
             hosts,
             exchange_settings: settings,
-            default_price,
+            execution_price,
+            min_price,
             min_amount,
+            default_currency_pair: default_currency_pair(),
             tx,
             rx,
         }

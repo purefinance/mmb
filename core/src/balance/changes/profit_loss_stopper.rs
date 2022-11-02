@@ -136,7 +136,7 @@ pub(crate) mod test {
     };
     use mmb_domain::order::snapshot::Amount;
     use mmb_domain::order::snapshot::ClientOrderFillId;
-    use mmb_utils::{logger::init_logger_file_named, DateTime};
+    use mmb_utils::{logger::init_logger, DateTime};
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal_macros::dec;
 
@@ -329,7 +329,7 @@ pub(crate) mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn add_change_should_calculate_usd_correctly() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let context = init(max_period(), 4);
 
         context
@@ -363,7 +363,7 @@ pub(crate) mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn add_change_should_ignore_old_data() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let context = init(max_period(), 3);
 
         context
@@ -391,7 +391,7 @@ pub(crate) mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_stop_transaction() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
@@ -444,7 +444,7 @@ pub(crate) mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_recover_after_positive_tarde() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
@@ -521,7 +521,7 @@ pub(crate) mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_recover_after_first_change_expired() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
@@ -606,7 +606,7 @@ pub(crate) mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_recover_after_time_period() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
