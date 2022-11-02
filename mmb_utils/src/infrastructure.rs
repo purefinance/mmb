@@ -11,7 +11,7 @@ use tokio::time::timeout;
 use uuid::Uuid;
 
 use crate::cancellation_token::CancellationToken;
-use crate::logger::init_logger_file_named;
+use crate::logger::init_logger;
 use crate::logger::print_info;
 use crate::panic::handle_future_panic;
 use crate::panic::set_panic_hook;
@@ -262,9 +262,9 @@ where
 }
 
 /// Do not use this in tests because panics will not be logged #448
-pub fn init_infrastructure(log_file: &str) {
+pub fn init_infrastructure() {
     set_panic_hook();
-    init_logger_file_named(log_file);
+    init_logger();
 }
 
 #[cfg(test)]

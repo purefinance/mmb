@@ -15,7 +15,7 @@ use tokio::sync::broadcast;
 #[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn partial_order_fill() {
-    init_infrastructure("log.txt");
+    init_infrastructure();
 
     let first_serum_builder = SerumBuilder::build_account_0().await;
     let first_exchange_account_id = first_serum_builder.exchange.exchange_account_id;
@@ -90,7 +90,7 @@ async fn partial_order_fill() {
 #[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn full_order_fill() {
-    init_infrastructure("log.txt");
+    init_infrastructure();
 
     let first_serum_builder = SerumBuilder::build_account_0().await;
     let first_exchange_account_id = first_serum_builder.exchange.exchange_account_id;

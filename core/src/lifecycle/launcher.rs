@@ -45,6 +45,7 @@ use tokio::time::timeout;
 use uuid::Uuid;
 
 use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
+use crate::services::cleanup_database::CleanupDatabaseService;
 use crate::services::live_ranges::LiveRangesService;
 
 pub struct EngineBuildConfig {
@@ -132,7 +133,7 @@ async fn before_engine_context_init<StrategySettings>(
 where
     StrategySettings: DispositionStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
-    init_infrastructure("log_robot.txt");
+    init_infrastructure();
 
     log::info!("*****************************");
     log::info!("TradingEngine starting");
@@ -278,7 +279,7 @@ fn run_services<'a, StrategySettings>(
     init_user_settings: InitSettings<StrategySettings>,
     finish_graceful_shutdown_rx: oneshot::Receiver<ActionAfterGracefulShutdown>,
     cleanup_orders_service: Arc<CleanupOrdersService>,
-    live_ranges_service: Option<Arc<LiveRangesService>>,
+    data_services: Option<DataServices>,
 ) -> TradingEngine<StrategySettings>
 where
     StrategySettings: DispositionStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
@@ -312,6 +313,32 @@ where
         ),
     );
 
+    if let Some(data_services) = data_services {
+        engine_context
+            .shutdown_service
+            .register_core_service(data_services.live_range_service.clone());
+
+        let _ = spawn_by_timer(
+            "live ranges",
+            Duration::ZERO,
+            Duration::from_secs(1),
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            move || data_services.live_range_service.clone().push(),
+        );
+
+        engine_context
+            .shutdown_service
+            .register_core_service(data_services.cleanup_database_service.clone());
+
+        let _ = spawn_by_timer(
+            "cleanup database",
+            Duration::ZERO,
+            Duration::from_secs(60 * 60), // one hour
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            move || data_services.cleanup_database_service.clone().run(),
+        );
+    }
+
     let _ = spawn_by_timer(
         "cleanup_outdated_orders",
         Duration::ZERO,
@@ -319,20 +346,6 @@ where
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
         move || cleanup_orders_service.clone().cleanup_outdated_orders(),
     );
-
-    if let Some(live_ranges_service) = live_ranges_service {
-        engine_context
-            .shutdown_service
-            .register_core_service(live_ranges_service.clone());
-
-        let _ = spawn_by_timer(
-            "live ranges",
-            Duration::ZERO,
-            Duration::from_secs(1),
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            move || live_ranges_service.clone().push(),
-        );
-    }
 
     log::info!("TradingEngine started");
     TradingEngine::new(engine_context, settings, finish_graceful_shutdown_rx)
@@ -393,6 +406,11 @@ pub(crate) fn unwrap_or_handle_panic<T>(
     })
 }
 
+pub struct DataServices {
+    live_range_service: Arc<LiveRangesService>,
+    cleanup_database_service: Arc<CleanupDatabaseService>,
+}
+
 pub async fn launch_trading_engine<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
@@ -435,11 +453,16 @@ where
     let cleanup_orders_service =
         Arc::new(CleanupOrdersService::new(engine_context.exchanges.clone()));
 
-    let live_ranges_service = match pool {
+    let data_services = match pool {
         None => None,
         Some(pool) => {
             let session_id = Uuid::new_v4().to_string();
-            Some(Arc::new(LiveRangesService::new(session_id, pool)))
+            let live_range_service = Arc::new(LiveRangesService::new(session_id, pool.clone()));
+            let cleanup_database_service = Arc::new(CleanupDatabaseService::new(pool));
+            Some(DataServices {
+                live_range_service,
+                cleanup_database_service,
+            })
         }
     };
 
@@ -452,7 +475,7 @@ where
             init_user_settings,
             finish_graceful_shutdown_rx,
             cleanup_orders_service,
-            live_ranges_service,
+            data_services,
         )
     }));
 

@@ -1,15 +1,23 @@
-use crate::bitmex::bitmex_builder::BitmexBuilder;
+use crate::bitmex::bitmex_builder::{default_exchange_account_id, BitmexBuilder};
+use crate::bitmex::common::get_bitmex_credentials;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::RequestResult;
+use mmb_core::exchanges::general::features::{
+    BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
+    RestFillsFeatures, RestFillsType, WebSocketOptions,
+};
+use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
+use mmb_domain::events::AllowedEventSourceType;
 use mmb_domain::market::ExchangeErrorType;
 use mmb_domain::order::snapshot::OrderCancelling;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use std::time::Duration;
+use tokio::time::sleep;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancelled_successfully() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(bitmex_builder) => bitmex_builder,
@@ -38,7 +46,7 @@ async fn cancelled_successfully() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancel_all() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(bitmex_builder) => bitmex_builder,
@@ -77,7 +85,7 @@ async fn cancel_all() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn nothing_to_cancel() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(bitmex_builder) => bitmex_builder,
@@ -113,12 +121,36 @@ async fn nothing_to_cancel() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancel_after_fill() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
-    let bitmex_builder = match BitmexBuilder::build_account(false).await {
-        Ok(bitmex_builder) => bitmex_builder,
+    let (api_key, secret_key) = match get_bitmex_credentials() {
+        Ok((api_key, secret_key)) => (api_key, secret_key),
         Err(_) => return,
     };
+    let mut settings =
+        ExchangeSettings::new_short(default_exchange_account_id(), api_key, secret_key, true);
+    settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
+        base: "XBT".into(),
+        quote: "USD".into(),
+    }]);
+
+    let mut features = ExchangeFeatures::new(
+        OpenOrdersType::OneCurrencyPair,
+        RestFillsFeatures::new(RestFillsType::MyTrades),
+        OrderFeatures {
+            supports_get_order_info_by_client_order_id: true,
+            ..OrderFeatures::default()
+        },
+        OrderTradeOption::default(),
+        WebSocketOptions::default(),
+        true,
+        AllowedEventSourceType::default(),
+        AllowedEventSourceType::default(),
+        AllowedEventSourceType::default(),
+    );
+    features.balance_position_option = BalancePositionOption::IndividualRequests;
+
+    let bitmex_builder = BitmexBuilder::build_account_with_setting(settings, features).await;
 
     let mut order_proxy = OrderProxy::new(
         bitmex_builder.exchange.exchange_account_id,
@@ -135,6 +167,8 @@ async fn cancel_after_fill() {
         .await
         .expect("Create order failed with error:");
 
+    let _ = sleep(Duration::from_secs(5));
+
     let order_to_cancel = OrderCancelling {
         header: order_proxy.make_header(),
         exchange_order_id: order_ref
@@ -150,6 +184,18 @@ async fn cancel_after_fill() {
         .expect("in test");
 
     if let RequestResult::Error(error) = cancel_outcome.outcome {
-        assert_eq!(error.error_type, ExchangeErrorType::InvalidOrder);
+        assert_eq!(error.error_type, ExchangeErrorType::OrderNotFound);
     }
+
+    let active_positions = bitmex_builder
+        .exchange
+        .get_active_positions(order_proxy.cancellation_token.clone())
+        .await;
+    let position_info = active_positions.first().expect("Have no active positions");
+
+    let _ = bitmex_builder
+        .exchange
+        .close_position(position_info, None, order_proxy.cancellation_token.clone())
+        .await
+        .expect("Failed to get closed position");
 }

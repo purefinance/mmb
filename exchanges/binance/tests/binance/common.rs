@@ -5,6 +5,7 @@ use hyper::Uri;
 use jsonrpc_core::Value;
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{ErrorHandlerData, UriBuilder};
+use mmb_core::settings::ExchangeSettings;
 use mmb_core::{
     exchanges::rest_client::RestClient,
     exchanges::{
@@ -13,13 +14,14 @@ use mmb_core::{
     },
     lifecycle::launcher::EngineBuildConfig,
 };
-use mmb_domain::exchanges::symbol::{Round, Symbol};
+use mmb_domain::exchanges::symbol::{Precision, Round, Symbol};
 use mmb_domain::market::{CurrencyPair, ExchangeAccountId, SpecificCurrencyPair};
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, OrderSide, Price};
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::value_to_decimal::GetOrErr;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -103,54 +105,76 @@ async fn send_request(
 /// Automatic price calculation for orders. This function gets the price from 10-th price level of
 /// order book if it exists otherwise last bid price from order book.
 /// This helps to avoid creating order in the top of the order book and filling it.
-pub(crate) async fn get_default_price(
+/// Returns tuple of execution_price (order with such price supposed to be executed immediately)
+/// and min_price (for orders which must be opened after creation for a some time)
+pub(crate) async fn get_prices(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,
-    api_key: &str,
-    exchange_account_id: ExchangeAccountId,
-    is_margin_trading: bool,
-) -> Price {
+    settings: &ExchangeSettings,
+    price_precision: &Precision,
+) -> (Price, Price) {
     #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
     struct OrderBook {
         pub bids: Vec<(Decimal, Decimal)>,
     }
 
-    let mut builder = UriBuilder::from_path(match is_margin_trading {
+    let mut builder = UriBuilder::from_path(match settings.is_margin_trading {
         true => "/fapi/v1/depth",
         false => "/api/v3/depth",
     });
     builder.add_kv("symbol", &currency_pair);
-    builder.add_kv("limit", "20");
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
-    let data = send_request(uri, api_key, exchange_account_id, is_margin_trading).await;
+    let data = send_request(
+        uri,
+        &settings.api_key,
+        settings.exchange_account_id,
+        settings.is_margin_trading,
+    )
+    .await;
 
     let value: OrderBook =
         serde_json::from_str(&data).with_expect(|| format!("failed to deserialize data: {data}"));
 
-    let last = value.bids.iter().last();
-    last.with_expect(|| format!("can't get bid from {currency_pair} orderbook because it's empty"))
-        .0
+    let top_bid_price = value
+        .bids
+        .first()
+        .expect("Can't get bid value from order book")
+        .0;
+    let low_bid_price = value
+        .bids
+        .last()
+        .expect("Can't get bid value from order book")
+        .0;
+
+    (
+        top_bid_price + price_precision.get_tick() * dec!(2),
+        low_bid_price,
+    )
 }
 
 /// Automatic amount calculation for orders. This function calculate the amount for price and MIN_NOTIONAL filter.
 pub(crate) async fn get_min_amount(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,
-    api_key: &str,
+    settings: &ExchangeSettings,
     price: Price,
     symbol: &Symbol,
-    exchange_account_id: ExchangeAccountId,
-    is_margin_trading: bool,
 ) -> Amount {
-    let mut builder = UriBuilder::from_path(match is_margin_trading {
+    let mut builder = UriBuilder::from_path(match settings.is_margin_trading {
         true => "/fapi/v1/exchangeInfo",
         false => "/api/v3/exchangeInfo",
     });
     builder.add_kv("symbol", &currency_pair);
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
-    let data = send_request(uri, api_key, exchange_account_id, is_margin_trading).await;
+    let data = send_request(
+        uri,
+        &settings.api_key,
+        settings.exchange_account_id,
+        settings.is_margin_trading,
+    )
+    .await;
 
     let value: Value =
         serde_json::from_str(&data).with_expect(|| format!("failed to deserialize data: {data}"));
@@ -172,11 +196,18 @@ pub(crate) async fn get_min_amount(
         .expect("Failed to get min_notional_filter");
 
     let min_notional = min_notional_filter
-        .get_as_decimal(match is_margin_trading {
+        .get_as_decimal(match settings.is_margin_trading {
             true => "notional",
             false => "minNotional",
         })
         .expect("Failed to get min_notional");
 
     symbol.amount_round(min_notional / price, Round::Ceiling)
+}
+
+pub(crate) fn get_position_value_by_side(side: OrderSide, position: Amount) -> Amount {
+    match side {
+        OrderSide::Buy => position,
+        OrderSide::Sell => -position,
+    }
 }

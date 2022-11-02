@@ -186,12 +186,12 @@ impl ShutdownService {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use mmb_utils::logger::init_logger_file_named;
+    use mmb_utils::logger::init_logger;
     use tokio::sync::oneshot::Receiver;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn success() {
-        init_logger_file_named("log.txt");
+        init_logger();
 
         pub struct TestService;
 
@@ -225,7 +225,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn failed() {
-        init_logger_file_named("log.txt");
+        init_logger();
 
         const REF_TEST_SERVICE: &str = "RefTestService";
         pub struct RefTestService(Mutex<Option<Arc<RefTestService>>>);

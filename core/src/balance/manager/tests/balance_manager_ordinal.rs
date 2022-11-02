@@ -147,7 +147,7 @@ mod tests {
     use mmb_domain::market::CurrencyCode;
     use mmb_domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
-    use mmb_utils::logger::init_logger_file_named;
+    use mmb_utils::logger::init_logger;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -281,7 +281,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn balance_was_received_not_existing_exchange_account_id() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = BalanceManagerOrdinal::new();
         assert!(!test_object
             .balance_manager()
@@ -290,7 +290,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn balance_was_received_existing_exchange_account_id_without_currency() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = BalanceManagerOrdinal::new();
         assert!(!test_object
             .balance_manager()
@@ -299,7 +299,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn balance_was_received_existing_exchange_account_id_with_currency() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(2));
 
         assert!(test_object
@@ -310,7 +310,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn update_exchange_balance_skip_currencies_with_zero_balance_which_are_not_part_of_currency_pairs(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = BalanceManagerOrdinal::new();
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
@@ -351,7 +351,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_buy_returns_quote_balance_and_currency_code() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(0.5), dec!(0.1));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
@@ -382,7 +382,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_sell_return_base_balance_and_currency_code() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(0.5), dec!(0.1));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
@@ -413,7 +413,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn can_reserve_buy_not_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -436,7 +436,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn can_reserve_buy_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -459,7 +459,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn can_reserve_sell_not_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -482,7 +482,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn can_reserve_sell_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5.0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -505,7 +505,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_buy_not_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -528,7 +528,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_buy_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -570,7 +570,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_sell_not_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -593,7 +593,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_sell_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -634,7 +634,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_update_reservation_buy_worse_price_not_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -666,7 +666,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_update_reservation_buy_worse_price_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -698,7 +698,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_update_reservation_buy_better_price() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -736,7 +736,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_update_reservation_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5.0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -767,7 +767,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_pair_not_enough_balance_for_1() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(0.0), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -804,7 +804,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_pair_not_enough_balance_for_2() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(3), dec!(0));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -841,7 +841,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_pair_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -913,7 +913,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_three_not_enough_balance_for_1() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(0.0), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -960,7 +960,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_three_not_enough_balance_for_2() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -1007,7 +1007,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_three_not_enough_balance_for_3() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -1053,7 +1053,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_three_enough_balance() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(6));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -1160,7 +1160,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_should_not_unreserve_for_unknown_exchange_account_id() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1193,7 +1193,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_can_unreserve_more_than_reserved_with_compensation_amounts() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1227,7 +1227,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_can_not_unreserve_after_complete_unreserved() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1267,7 +1267,7 @@ mod tests {
     #[case(dec!(1e-28))]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_zero_amount(#[case] amount_to_unreserve: Amount) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let symbol = Arc::from(Symbol::new(
@@ -1323,7 +1323,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1357,7 +1357,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1391,7 +1391,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_rest_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1425,7 +1425,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_rest_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1459,7 +1459,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_rest_partially_unreserved_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1498,7 +1498,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_rest_partially_unreserved_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1547,7 +1547,7 @@ mod tests {
         #[case] amount_2: Amount,
         #[case] amount_to_transfer: Amount,
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(src_balance, src_balance);
 
         let side = OrderSide::Sell;
@@ -1621,7 +1621,7 @@ mod tests {
         #[case] amount_2: Amount,
         #[case] amount_to_transfer: Amount,
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(src_balance, src_balance);
 
         let side = OrderSide::Buy;
@@ -1685,7 +1685,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_partial() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -1739,7 +1739,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_all() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -1793,7 +1793,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_more_than_we_have_should_do_nothing_and_panic() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = Arc::new(Mutex::new(create_test_obj_by_currency_code(
             BalanceManagerBase::eth(),
             dec!(5),
@@ -1862,7 +1862,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_zero_from_zero_reservation_should_remove_reservation() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -1889,7 +1889,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_with_unreserve() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -1950,7 +1950,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_partial_approve() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -2049,7 +2049,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic]
     pub async fn transfer_reservations_amount_more_thane_we_have() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -2108,7 +2108,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic]
     pub async fn transfer_reservations_amount_more_than_we_have_by_approve_client_order_id() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -2163,7 +2163,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic]
     pub async fn transfer_reservations_unknown_client_order_id() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -2195,7 +2195,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_partial_approve_with_multiple_orders() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -2287,7 +2287,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn transfer_reservations_amount_partial_approve_with_multiple_orders_to_existing_part(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
@@ -2384,7 +2384,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_pair() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj_for_two_exchanges(
             BalanceManagerBase::btc(),
             dec!(1),
@@ -2446,7 +2446,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_not_existing_exchange_account_id() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         assert_eq!(
@@ -2463,7 +2463,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_not_existing_currency_code() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(2));
 
         assert_eq!(
@@ -2480,7 +2480,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_unapproved_reservations_are_counted_even_after_balance_update() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = BalanceManagerOrdinal::new();
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
@@ -2546,7 +2546,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_approved_reservations_are_not_counted_after_balance_update() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = BalanceManagerOrdinal::new();
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
@@ -2620,7 +2620,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_balance_partially_approved_reservations_are_not_counted_after_balance_update()
     {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = BalanceManagerOrdinal::new();
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
@@ -2696,7 +2696,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_filled_last_fill_by_default_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -2754,7 +2754,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_filled_last_fill_by_default_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -2812,7 +2812,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_filled_specific_fill_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -2871,7 +2871,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_filled_specific_fill_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -2930,7 +2930,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_finished_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -2989,7 +2989,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_finished_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -3047,7 +3047,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn order_was_finished_buy_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::btc(),
@@ -3125,7 +3125,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_order_creating() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3231,7 +3231,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_order_got_status_created_but_its_reservation_is_not_approved() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3343,7 +3343,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_order_created() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3461,7 +3461,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_exists_unapproved_reservations() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3569,7 +3569,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_exists_approved_reservation() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3675,7 +3675,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_exists_partially_approved_reservation_1_approved_part_out_of_1_and_no_created_orders(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3781,7 +3781,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_exists_partially_approved_reservation_2_approved_part_out_of_2_and_no_created_orders(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -3900,7 +3900,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_exists_partially_approved_reservation_1_approved_part_out_of_2_and_1_created_orders(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -4024,7 +4024,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn clone_when_exists_partially_approved_reservation_2_approved_part_out_of_3_and_no_2_created_orders(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_with_multiple_currencies(
             vec![
                 BalanceManagerBase::eth(),
@@ -4162,7 +4162,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unmatched_reserved_amount_and_order_amount_sum_sell() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(1000));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4204,7 +4204,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unmatched_reserved_amount_and_order_amount_sum_buy() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1000));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4246,7 +4246,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn can_reserve_reservation_limits_enough_and_not_enough() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_test_obj_by_currency_code_with_limit(
             BalanceManagerBase::btc(),
             dec!(1),
@@ -4284,7 +4284,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn can_reserve_fill_and_reservation_limits_enough_and_not_enough() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let limit = dec!(2);
         let start_amount = dec!(1);
         let mut test_object = create_test_obj_by_currency_code_with_limit(
@@ -4386,7 +4386,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn restore_state_ctor() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0));
         let (_, exchanges_by_id) = BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
 
@@ -4470,7 +4470,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn update_exchange_balance_should_ignore_approved_reservations_for_canceled_orders() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(10));
 
         let price = dec!(1);
@@ -4543,7 +4543,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_should_reduce_not_approved_amount() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4576,7 +4576,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_should_reduce_not_approved_amount_approved_order_single_unreserve() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4621,7 +4621,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_should_reduce_not_approved_amount_approved_order_unreserve_twice_by_half(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4679,7 +4679,7 @@ mod tests {
     #[should_panic(expected = "in test")]
     pub async fn unreserve_should_reduce_not_approved_amount_approved_order_unreserve_more_than_we_have(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4719,7 +4719,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn unreserve_should_reduce_not_approved_amount_not_approved_order_single_unreserve() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4759,7 +4759,7 @@ mod tests {
     #[should_panic(expected = "in test")]
     pub async fn unreserve_should_reduce_not_approved_amount_not_approved_order_unreserve_more_than_we_have(
     ) {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -4796,7 +4796,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ignore] // TODO: Should be fixed by https://github.com/CryptoDreamTeam/CryptoDreamTraderSharp/issues/802
     pub async fn order_was_finished_should_unreserve_related_reservations() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(10));
 
         let price = dec!(1);
@@ -4883,7 +4883,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ignore] // TODO: Should be fixed by https://github.com/CryptoDreamTeam/CryptoDreamTraderSharp/issues/802
     pub async fn order_was_filled_should_unreserve_related_reservations() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let price = dec!(1);
@@ -4974,7 +4974,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn try_reserve_with_limit_for_borderline_case() {
         // preparing
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(100), dec!(100));
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
@@ -5087,7 +5087,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_last_position_change_before_period_base_cases() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;

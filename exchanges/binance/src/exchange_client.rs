@@ -1,9 +1,8 @@
 use super::binance::Binance;
-use crate::support::{BinanceOrderInfo, BinancePosition};
+use crate::support::BinanceOrderInfo;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use function_name::named;
-use itertools::Itertools;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
@@ -95,7 +94,7 @@ impl ExchangeClient for Binance {
     ) -> Result<ClosedPosition> {
         let response = self.request_close_position(position, price).await?;
         let binance_order: BinanceOrderInfo = serde_json::from_str(&response.content)
-            .expect("Unable to parse response content for get_open_orders request");
+            .context("Unable to parse response content for get_open_orders request")?;
 
         Ok(ClosedPosition::new(
             binance_order.exchange_order_id.into(),
@@ -105,23 +104,21 @@ impl ExchangeClient for Binance {
 
     async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
         let response = self.request_get_position().await?;
-        let binance_positions: Vec<BinancePosition> = serde_json::from_str(&response.content)
-            .expect("Unable to parse response content for get_active_positions_core request");
 
-        Ok(binance_positions
-            .into_iter()
-            .map(|x| self.binance_position_to_active_position(x))
-            .collect_vec())
+        self.parse_active_positions(&response)
     }
 
     async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
         let response = self.request_get_balance().await?;
 
-        Ok(self.parse_get_balance(&response))
+        self.parse_get_balance(&response)
     }
 
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
-        unimplemented!("Have not implementation in C# too")
+        let balance_response = self.request_get_balance().await?;
+        let positions_response = self.request_get_position().await?;
+
+        self.parse_balance_and_positions(&balance_response, &positions_response)
     }
 
     async fn get_my_trades(

@@ -140,6 +140,22 @@ impl EngineContext {
             }
         }
 
+        match timeout(
+            TIMEOUT,
+            close_active_positions(&self.exchanges, cancellation_token.clone()),
+        )
+        .await
+        {
+            Ok(()) => (),
+            Err(_) => {
+                cancellation_token.cancel();
+                log::error!(
+                    "Timeout {} secs is exceeded: active positions closing has been stopped",
+                    TIMEOUT.as_secs(),
+                );
+            }
+        }
+
         self.shutdown_service.core_lvl_shutdown().await;
 
         match timeout(Duration::from_secs(5), self.event_recorder.flush_and_stop()).await {
@@ -188,6 +204,23 @@ async fn cancel_opened_orders(
     .await;
 
     log::info!("Canceling opened orders finished");
+}
+
+async fn close_active_positions(
+    exchanges: &DashMap<ExchangeAccountId, Arc<Exchange>>,
+    cancellation_token: CancellationToken,
+) {
+    log::info!("Closing active positions started");
+
+    join_all(
+        exchanges
+            .iter()
+            .filter(|x| x.exchange_client.get_settings().is_margin_trading)
+            .map(|x| x.clone().close_active_positions(cancellation_token.clone())),
+    )
+    .await;
+
+    log::info!("Closing active positions finished");
 }
 
 pub struct TradingEngine<StrategySettings: Clone> {

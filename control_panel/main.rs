@@ -56,7 +56,7 @@ async fn control_panel_run() {
 
 #[actix_web::main]
 async fn main() {
-    init_infrastructure("control_panel_log.txt");
+    init_infrastructure();
 
     if (AssertUnwindSafe(control_panel_run()).catch_unwind().await).is_err() {
         PANIC_STATE.with(|panic_state| {

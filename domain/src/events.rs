@@ -101,14 +101,24 @@ impl TradeId {
             }
         }
     }
-}
 
-impl From<Value> for TradeId {
-    fn from(value: Value) -> Self {
+    fn from_value(value: &Value) -> Self {
         match value.as_u64() {
             Some(value) => TradeId::Number(value),
             None => TradeId::String(value.to_string().into_boxed_str()),
         }
+    }
+}
+
+impl From<Value> for TradeId {
+    fn from(value: Value) -> Self {
+        TradeId::from_value(&value)
+    }
+}
+
+impl From<&Value> for TradeId {
+    fn from(value: &Value) -> Self {
+        TradeId::from_value(value)
     }
 }
 

@@ -78,12 +78,36 @@ impl ErrorHandler for ErrorHandlerBitmex {
     }
 
     fn clarify_error_type(&self, error: &ExchangeError) -> ExchangeErrorType {
-        if error.message.contains("Invalid orderID") {
-            ExchangeErrorType::OrderNotFound
-        } else if error.message.contains("Unable to cancel order") {
-            ExchangeErrorType::InvalidOrder
-        } else {
-            ExchangeErrorType::Unknown
+        #[derive(Deserialize)]
+        #[serde(bound(deserialize = "'de: 'a"))]
+        struct BitmexError<'a> {
+            error: Message<'a>,
+        }
+        #[derive(Deserialize)]
+        #[serde(bound(deserialize = "'de: 'a"))]
+        struct Message<'a> {
+            message: &'a str,
+        }
+
+        let bitmex_error: BitmexError =
+            serde_json::from_str(&error.message).expect("Failed to parse Bitmex error message");
+
+        match bitmex_error.error.message {
+            "Invalid orderID"
+            | "Unable to cancel order"
+            | "Unable to cancel order due to existing state: Canceled"
+            | "Not Found" => ExchangeErrorType::OrderNotFound,
+            "Invalid orderQty"
+            | "orderQty is invalid"
+            | "Invalid price tickSize"
+            | "Invalid price"
+            | "Invalid leavesQty for lotSize" => ExchangeErrorType::InvalidOrder,
+            "Unable to cancel order due to existing state: Filled" => {
+                ExchangeErrorType::OrderCompleted
+            }
+            "Account has insufficient Available Balance" => ExchangeErrorType::InsufficientFunds,
+            "Rate limit exceeded" => ExchangeErrorType::RateLimit,
+            _ => ExchangeErrorType::Unknown,
         }
     }
 }
@@ -662,7 +686,7 @@ impl Bitmex {
         let common_balances = raw_balances
             .into_iter()
             .map(|balance_info| {
-                let currency_code = CurrencyCode::from(balance_info.currency);
+                let currency_code = balance_info.currency.into();
                 let balance_rate = currency_rates.get(&currency_code).ok_or_else(|| {
                     anyhow!("Balance rate not found for currency {currency_code}")
                 })?;
@@ -712,10 +736,9 @@ impl Bitmex {
     }
 
     pub(super) fn get_order_role_by_commission_amount(commission_amount: Decimal) -> OrderRole {
-        if commission_amount.is_sign_positive() {
-            OrderRole::Taker
-        } else {
-            OrderRole::Maker
+        match commission_amount.is_sign_positive() {
+            true => OrderRole::Taker,
+            false => OrderRole::Maker,
         }
     }
 
@@ -780,7 +803,6 @@ impl ExchangeClientBuilder for BitmexBuilder {
                 trade_option: OrderTradeOption {
                     supports_trade_time: true,
                     supports_trade_incremented_id: false,
-                    notification_on_each_currency_pair: false,
                     supports_get_prints: true,
                     supports_tick_direction: true,
                     supports_my_trades_from_time: true,

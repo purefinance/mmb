@@ -19,7 +19,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
 use super::support::{BinanceOrderInfo, BinanceSpotBalances};
-use crate::support::{BinanceAccountInfo, BinanceMarginBalances};
+use crate::support::{BinanceAccountInfo, BinanceMarginBalances, BinancePosition};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::{
@@ -53,7 +53,7 @@ use mmb_domain::order::fill::{EventSourceType, OrderFillType};
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::*;
 use mmb_domain::order::snapshot::{Amount, Price};
-use mmb_domain::position::ActivePosition;
+use mmb_domain::position::{ActivePosition, DerivativePosition};
 use mmb_utils::value_to_decimal::GetOrErr;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::GenericArray;
@@ -675,18 +675,21 @@ impl Binance {
         price: Option<Price>,
     ) -> Result<RestResponse, ExchangeError> {
         let mut builder = UriBuilder::from_path("/fapi/v1/order");
-        builder.add_kv("leverage", &position.derivative.leverage);
-        builder.add_kv("positionSide", "BOTH");
-        builder.add_kv("quantity", &position.derivative.position.abs());
-        builder.add_kv("side", position.derivative.get_side());
-        builder.add_kv("symbol", &position.derivative.currency_pair);
+        builder.add_kv("quantity", position.derivative.position.abs());
+        let side = position.derivative.get_side().change_side();
+        builder.add_kv("side", get_server_order_side(side));
+        builder.add_kv(
+            "symbol",
+            self.get_specific_currency_pair(position.derivative.currency_pair),
+        );
 
         match price {
-            Some(price) => {
-                builder.add_kv("type", "MARKET");
-                builder.add_kv("price", &price);
+            Some(price_value) => {
+                builder.add_kv("type", "LIMIT");
+                builder.add_kv("price", price_value);
+                builder.add_kv("timeInForce", "GTC");
             }
-            None => builder.add_kv("type", "LIMIT"),
+            None => builder.add_kv("type", "MARKET"),
         }
 
         self.add_authentification(&mut builder);
@@ -711,6 +714,47 @@ impl Binance {
             .await
     }
 
+    pub(super) fn parse_active_positions(
+        &self,
+        response: &RestResponse,
+    ) -> Result<Vec<ActivePosition>> {
+        self.get_derivative_positions(response)?
+            .map(|position| Ok(ActivePosition::new(position?)))
+            .try_collect()
+    }
+
+    fn get_derivative_positions<'a>(
+        &'a self,
+        response: &RestResponse,
+    ) -> Result<impl Iterator<Item = Result<DerivativePosition>> + 'a> {
+        let binance_positions: Vec<BinancePosition> =
+            serde_json::from_str(&response.content).context("Unable to parse Binance positions")?;
+
+        let unified_currency_pairs = self.specific_to_unified.read();
+        Ok(binance_positions
+            .into_iter()
+            // Binance returns all possible positions not only active
+            .filter(|position| !position.position_amount.is_zero())
+            .map(move |position| {
+                let currency_pair = unified_currency_pairs
+                    .get(&position.specific_currency_pair)
+                    .with_context(|| {
+                        format!(
+                            "Failed to get_unified_currency_pair for {:?}",
+                            position.specific_currency_pair
+                        )
+                    })?;
+
+                Ok(DerivativePosition::new(
+                    *currency_pair,
+                    position.position_amount,
+                    position.average_entry_price,
+                    position.liquidation_price,
+                    position.leverage,
+                ))
+            }))
+    }
+
     #[named]
     pub(super) async fn request_get_balance(&self) -> Result<RestResponse, ExchangeError> {
         let path = self.get_uri_path("/fapi/v2/account", "/api/v3/account");
@@ -726,22 +770,36 @@ impl Binance {
     pub(super) fn parse_get_balance(
         &self,
         response: &RestResponse,
-    ) -> ExchangeBalancesAndPositions {
-        let binance_account_info: BinanceAccountInfo = serde_json::from_str(&response.content)
-            .expect("Unable to parse response content for get_balance request");
+    ) -> Result<ExchangeBalancesAndPositions> {
+        let binance_account_info: BinanceAccountInfo =
+            serde_json::from_str(&response.content).context("Unable to parse account info")?;
 
-        match self.settings.is_margin_trading {
+        Ok(match self.settings.is_margin_trading {
             true => self.get_margin_exchange_balances_and_positions(
                 binance_account_info
                     .assets
-                    .expect("Unable to parse margin balances"),
+                    .context("Unable to parse margin balances")?,
             ),
             false => self.get_spot_exchange_balances_and_positions(
                 binance_account_info
                     .balances
-                    .expect("Unable to parse spot balances"),
+                    .context("Unable to parse spot balances")?,
             ),
-        }
+        })
+    }
+
+    pub(super) fn parse_balance_and_positions(
+        &self,
+        balance_response: &RestResponse,
+        positions_response: &RestResponse,
+    ) -> Result<ExchangeBalancesAndPositions> {
+        let derivative = self
+            .get_derivative_positions(positions_response)?
+            .try_collect()?;
+        let mut balances_and_positions = self.parse_get_balance(balance_response)?;
+        balances_and_positions.positions = Some(derivative);
+
+        Ok(balances_and_positions)
     }
 
     #[named]
@@ -799,7 +857,7 @@ impl Binance {
         #[derive(Serialize, Deserialize, Debug)]
         #[serde(rename_all = "camelCase")]
         struct BinanceMyTrade {
-            id: TradeId,
+            id: Value,
             order_id: u64,
             price: Price,
             #[serde(alias = "qty")]
@@ -808,6 +866,7 @@ impl Binance {
             #[serde(alias = "commissionAsset")]
             commission_currency_code: CurrencyId,
             time: u64,
+            #[serde(alias = "maker")]
             is_maker: bool,
         }
 
@@ -826,7 +885,7 @@ impl Binance {
                 let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
                 Ok(OrderTrade::new(
                     self.order_id.into(),
-                    self.id.clone(),
+                    TradeId::from(&self.id),
                     datetime,
                     self.price,
                     self.amount,

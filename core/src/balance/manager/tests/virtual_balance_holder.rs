@@ -89,7 +89,7 @@ impl VirtualBalanceHolderTests {
 mod tests {
     use std::collections::HashMap;
 
-    use mmb_utils::{hashmap, logger::init_logger_file_named};
+    use mmb_utils::{hashmap, logger::init_logger};
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
@@ -119,7 +119,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn set_balance_simple() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id;
@@ -137,7 +137,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_exchange_balance_multiple_currency_code() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id;
@@ -157,7 +157,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn get_all_balances_valid() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id;
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     #[ignore] // Work in progress due to derivatives
     pub fn get_balance_for_derivative_with_mark_price() {
-        init_logger_file_named("log.txt");
+        init_logger();
         let mut test_obj =
             VirtualBalanceHolderTests::new_with_amount(VirtualBalanceHolderTests::btc().as_str());
 
