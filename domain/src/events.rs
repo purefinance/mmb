@@ -1,12 +1,13 @@
 use core::panic;
 use itertools::Itertools;
+use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 
 use mmb_database::impl_event;
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use tokio::sync::broadcast;
 
@@ -31,7 +32,7 @@ pub struct ExchangeBalancesAndPositions {
 }
 
 impl Debug for ExchangeBalancesAndPositions {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let non_zero_balances = self
             .balances
             .iter()
@@ -85,7 +86,7 @@ impl LiquidationPriceEvent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
+#[derive(Debug, Clone, Serialize, Eq)]
 pub enum TradeId {
     Number(u64),
     String(Box<str>),
@@ -137,7 +138,7 @@ impl PartialEq for TradeId {
 }
 
 impl Display for TradeId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             TradeId::Number(number) => {
                 write!(f, "{}", number)
@@ -146,6 +147,32 @@ impl Display for TradeId {
                 write!(f, "{}", string)
             }
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for TradeId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TradeIdVisitor;
+
+        impl<'de> de::Visitor<'de> for TradeIdVisitor {
+            type Value = TradeId;
+
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                formatter.write_str("a string containing `TradeId`")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Self::Value::from(v.to_string()))
+            }
+        }
+
+        deserializer.deserialize_any(TradeIdVisitor)
     }
 }
 

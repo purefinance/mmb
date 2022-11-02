@@ -25,7 +25,7 @@ use mmb_core::config::{CONFIG_PATH, CREDENTIALS_PATH};
 use mmb_core::infrastructure::{spawn_future, spawn_future_ok};
 use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_core::settings::BaseStrategySettings;
+use mmb_core::settings::DispositionStrategySettings;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use strategies::example_strategy::{ExampleStrategy, ExampleStrategySettings};
 use vis_robot_integration::start_visualization_data_saving;

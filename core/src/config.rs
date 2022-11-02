@@ -3,7 +3,7 @@ use std::{collections::HashMap, io::Write};
 use std::{fmt::Debug, fs::File};
 
 use crate::lifecycle::launcher::InitSettings;
-use crate::settings::{AppSettings, BaseStrategySettings};
+use crate::settings::{AppSettings, DispositionStrategySettings};
 use anyhow::{anyhow, bail, Context, Result};
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
@@ -21,7 +21,7 @@ pub fn try_load_settings<TSettings>(
     credentials_path: &str,
 ) -> Result<AppSettings<TSettings>>
 where
-    TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
+    TSettings: DispositionStrategySettings + Clone + Debug + DeserializeOwned,
 {
     let settings = read_to_string(config_path)
         .with_context(|| format!("Unable load settings file: {}", config_path))?;
@@ -35,7 +35,7 @@ pub fn load_pretty_settings<StrategySettings>(
     init_user_settings: InitSettings<StrategySettings>,
 ) -> String
 where
-    StrategySettings: BaseStrategySettings + Clone + serde::ser::Serialize,
+    StrategySettings: DispositionStrategySettings + Clone + serde::ser::Serialize,
 {
     match init_user_settings {
         InitSettings::Directly(settings) => {
@@ -62,7 +62,7 @@ pub fn parse_settings<TSettings>(
     credentials: &str,
 ) -> Result<AppSettings<TSettings>>
 where
-    TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
+    TSettings: DispositionStrategySettings + Clone + Debug + DeserializeOwned,
 {
     let settings =
         parse_toml_settings(settings, credentials).context("Unable parse toml settings")?;

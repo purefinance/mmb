@@ -14,7 +14,8 @@ members = [
     "mmb_database",
     "mmb_rpc",
     "mmb_utils",
-    "visualization/api"
+    "visualization/api",
+    "urlencoding_macro"
 ]
 exclude = [
     "examples/serum_demo",

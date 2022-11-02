@@ -16,7 +16,7 @@ use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::rpc::config_waiter::ConfigWaiter;
 use crate::rpc::core_api::CoreApi;
 use crate::services::cleanup_orders::CleanupOrdersService;
-use crate::settings::{AppSettings, BaseStrategySettings, CoreSettings};
+use crate::settings::{AppSettings, CoreSettings, DispositionStrategySettings};
 use anyhow::{anyhow, bail, Context, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
@@ -67,7 +67,7 @@ impl EngineBuildConfig {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InitSettings<StrategySettings>
 where
-    StrategySettings: BaseStrategySettings + Clone,
+    StrategySettings: DispositionStrategySettings + Clone,
 {
     Directly(AppSettings<StrategySettings>),
     Load {
@@ -81,7 +81,7 @@ pub async fn load_settings_or_wait<StrategySettings>(
     credentials_path: &str,
 ) -> Option<AppSettings<StrategySettings>>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
+    StrategySettings: DispositionStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     let (wait_config_tx, mut wait_config_rx) = mpsc::channel::<()>(10);
 
@@ -130,7 +130,7 @@ async fn before_engine_context_init<StrategySettings>(
     Option<PgPool>,
 )>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
+    StrategySettings: DispositionStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     init_infrastructure("log_robot.txt");
 
@@ -281,7 +281,7 @@ fn run_services<'a, StrategySettings>(
     live_ranges_service: Option<Arc<LiveRangesService>>,
 ) -> TradingEngine<StrategySettings>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: DispositionStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     let internal_events_loop = InternalEventsLoop::new();
     engine_context
@@ -398,7 +398,7 @@ pub async fn launch_trading_engine<StrategySettings>(
     init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<TradingEngine<StrategySettings>>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
+    StrategySettings: DispositionStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     print_info("The TradingEngine is going to start...");
     let action_outcome = AssertUnwindSafe(before_engine_context_init(

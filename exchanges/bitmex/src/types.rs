@@ -1,4 +1,5 @@
 use anyhow::bail;
+use mmb_domain::events::TradeId;
 use mmb_domain::market::SpecificCurrencyPair;
 use mmb_domain::order::snapshot::{Amount, ClientOrderId, ExchangeOrderId, OrderSide, Price};
 use mmb_utils::DateTime;
@@ -364,7 +365,7 @@ pub(crate) struct BitmexTradePayload {
     pub(crate) size: Amount,
     pub(crate) price: Price,
     #[serde(rename = "trdMatchID")]
-    pub(crate) trade_id: String,
+    pub(crate) trade_id: TradeId,
     #[serde(deserialize_with = "deserialize_datetime")]
     pub(crate) timestamp: DateTime,
 }
@@ -384,7 +385,7 @@ pub(crate) struct BitmexOrderFillTrade<'a> {
     #[serde(rename = "text")]
     pub(crate) details: String,
     #[serde(rename = "execID")]
-    pub(crate) trade_id: String,
+    pub(crate) trade_id: TradeId,
     #[serde(rename = "clOrdID")]
     pub(crate) client_order_id: ClientOrderId,
     #[serde(rename = "orderID")]
