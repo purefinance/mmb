@@ -9,6 +9,7 @@ appenders:
   file:
     kind: file
     path: "log.log"
+    append: false
     filters:
       - kind: outer_modules_filter
     encoder:
