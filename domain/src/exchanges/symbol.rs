@@ -63,11 +63,13 @@ pub struct Symbol {
     pub quote_currency_code: CurrencyCode,
     pub min_price: Option<Price>,
     pub max_price: Option<Price>,
-    // min amount that Exchange can accept we can't change this field
+    /// Min order's amount for placing order on exchange specified in amount currency
     pub min_amount: Option<Amount>,
-    // max amount that Exchange can accept we can't change this field
+    /// Max order's amount for placing order on exchange specified in amount currency
     pub max_amount: Option<Amount>,
-    pub min_cost: Option<Price>,
+    /// Needed only for Binance (contains `MIN_NOTIONAL` constraints for order amount, see binance api documentation)
+    pub min_cost: Option<Amount>,
+    /// Currency which is used for specifying order's amount
     pub amount_currency_code: CurrencyCode,
     pub balance_currency_code: Option<CurrencyCode>,
     pub amount_multiplier: Decimal,
@@ -329,6 +331,12 @@ impl Symbol {
         );
     }
 
+    /// Calculate min order's amount constraint for placing order on exchange
+    /// NOTE: `price` needed when `min_cost` specified. It's used only for Binance
+    /// (for `MIN_NOTIONAL` constraint on order's amount) now.
+    /// For other exchanges you can specify any price for instance `dec!(0)`
+    /// For using correct `price` on Binance you should learn binance api docs about price used in
+    /// `MIN_NOTIONAL` https://binance-docs.github.io/apidocs/spot/en/#filters)
     pub fn get_min_amount(&self, price: Price) -> Result<Amount> {
         let min_cost = match self.min_cost {
             None => {
@@ -354,10 +362,7 @@ impl Symbol {
             Some(v) => v,
         };
 
-        let min_amount_from_cost = match self.is_derivative {
-            true => min_cost,
-            false => min_cost / price,
-        };
+        let min_amount_from_cost = min_cost / price;
 
         let rounded_amount = self.amount_round(min_amount_from_cost, Round::Ceiling);
 
@@ -559,5 +564,77 @@ mod test {
             symbol.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
             base_code
         );
+    }
+
+    mod get_min_amount {
+        use crate::exchanges::symbol::{Precision, Symbol};
+        use crate::market::CurrencyCode;
+        use rust_decimal_macros::dec;
+
+        #[test]
+        pub fn ok_when_min_amount_specified() {
+            let base_currency = "PHB";
+            let quote_currency = "BTC";
+            let price_tick = dec!(0.1);
+            let is_derivative = false;
+            let balance_currency_code = CurrencyCode::new("ETH");
+
+            let base_code = CurrencyCode::new(base_currency);
+            let quote_code = CurrencyCode::new(quote_currency);
+            let symbol = Symbol::new(
+                is_derivative,
+                base_currency.into(),
+                base_code,
+                quote_currency.into(),
+                quote_code,
+                None,
+                None,
+                Some(dec!(0.4)),
+                None,
+                None,
+                base_code,
+                Some(balance_currency_code),
+                Precision::ByTick { tick: price_tick },
+                Precision::ByTick { tick: dec!(0.2) },
+            );
+
+            let min_amount = symbol
+                .get_min_amount(dec!(0))
+                .expect("should be able calculate order's min amount");
+
+            assert_eq!(min_amount, dec!(0.4));
+        }
+
+        #[test]
+        pub fn err_when_no_min_amount_setup() {
+            let base_currency = "PHB";
+            let quote_currency = "BTC";
+            let price_tick = dec!(0.1);
+            let is_derivative = false;
+            let balance_currency_code = CurrencyCode::new("ETH");
+
+            let base_code = CurrencyCode::new(base_currency);
+            let quote_code = CurrencyCode::new(quote_currency);
+            let symbol = Symbol::new(
+                is_derivative,
+                base_currency.into(),
+                base_code,
+                quote_currency.into(),
+                quote_code,
+                None,
+                None,
+                None,
+                None,
+                None,
+                base_code,
+                Some(balance_currency_code),
+                Precision::ByTick { tick: price_tick },
+                Precision::ByTick { tick: dec!(0) },
+            );
+
+            let _ = symbol
+                .get_min_amount(dec!(0))
+                .expect_err("should be error if min_amount not specified");
+        }
     }
 }
