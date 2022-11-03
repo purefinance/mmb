@@ -116,14 +116,14 @@ impl ExchangeClient for Serum {
         _position: &ActivePosition,
         _price: Option<Price>,
     ) -> Result<ClosedPosition> {
-        todo!()
+        unimplemented!("Serum doesn't support futures")
     }
 
     async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
-        todo!()
+        unimplemented!("Serum doesn't support futures")
     }
 
-    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
         // price_mint_address and coin_mint_address are the same for different currency pairs and corresponding CurrencyCode
         let mint_addresses: HashMap<CurrencyCode, Pubkey> = self
             .markets_data
@@ -151,10 +151,6 @@ impl ExchangeClient for Serum {
             balances,
             positions: None,
         })
-    }
-
-    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
-        todo!()
     }
 
     async fn get_my_trades(

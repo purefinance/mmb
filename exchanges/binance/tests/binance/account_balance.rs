@@ -20,3 +20,22 @@ async fn get_balance_successfully() {
 
     assert!(result.is_ok());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn get_balance_successfully_futures() {
+    init_logger();
+
+    let binance_builder = match BinanceBuilder::build_account_0_futures().await {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    let result = binance_builder
+        .exchange
+        .get_balance(CancellationToken::default())
+        .await;
+
+    log::info!("Balance: {result:?}");
+
+    assert!(result.is_ok());
+}

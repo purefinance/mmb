@@ -3,8 +3,8 @@ use crate::bitmex::common::get_bitmex_credentials;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::features::{
-    BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
-    RestFillsFeatures, RestFillsType, WebSocketOptions,
+    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
+    RestFillsType, WebSocketOptions,
 };
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
@@ -134,7 +134,7 @@ async fn cancel_after_fill() {
         quote: "USD".into(),
     }]);
 
-    let mut features = ExchangeFeatures::new(
+    let features = ExchangeFeatures::new(
         OpenOrdersType::OneCurrencyPair,
         RestFillsFeatures::new(RestFillsType::MyTrades),
         OrderFeatures {
@@ -148,7 +148,6 @@ async fn cancel_after_fill() {
         AllowedEventSourceType::default(),
         AllowedEventSourceType::default(),
     );
-    features.balance_position_option = BalancePositionOption::IndividualRequests;
 
     let bitmex_builder = BitmexBuilder::build_account_with_setting(settings, features).await;
 

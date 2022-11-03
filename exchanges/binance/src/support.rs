@@ -49,37 +49,44 @@ pub struct BinanceOrderInfo {
     pub side: String,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub(crate) struct BinanceAccountInfo {
-    pub(crate) balances: Option<Vec<BinanceSpotBalances>>,
-    pub(crate) assets: Option<Vec<BinanceMarginBalances>>,
+#[derive(Deserialize, Debug)]
+#[serde(bound(deserialize = "'de: 'a"))]
+pub(crate) struct BinanceDerivativeAccountInfo<'a> {
+    pub(crate) assets: Vec<BinanceDerivativeBalances<'a>>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub(crate) struct BinanceSpotBalances {
-    pub(crate) asset: String,
-    pub(crate) free: Decimal,
-    pub(crate) locked: Decimal,
+#[derive(Deserialize, Debug)]
+#[serde(bound(deserialize = "'de: 'a"))]
+pub(crate) struct BinanceSpotAccountInfo<'a> {
+    pub(crate) balances: Vec<BinanceSpotBalances<'a>>,
 }
 
-// Corresponds https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
+pub(super) struct BinanceSpotBalances<'a> {
+    pub(super) asset: &'a str,
+    pub(super) free: Decimal,
+}
+
+/// Corresponds https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
+/// asset: string,                      // asset name
+/// wallet_balance: Decimal,            // wallet balance
+/// unrealized_profit: Decimal,         // unrealized profit
+/// margin_balance: Decimal,            // margin balance
+/// maint_margin: Decimal,              // maintenance margin required
+/// initial_margin: Decimal, // total initial margin required with current mark price
+/// position_initial_margin: Decimal, //initial margin required for positions with current mark price
+/// open_order_initial_margin: Decimal, // initial margin required for open orders with current mark price
+/// cross_wallet_balance: Decimal,      // crossed wallet balance
+/// cross_un_pnl: Decimal,              // unrealized profit of crossed positions
+/// available_balance: Decimal,         // available balance
+/// max_withdraw_amount: Decimal,       // maximum amount for transfer out
+/// margin_available: bool, // whether the asset can be used as margin in Multi-Assets mode
+/// update_time: Decimal,   // last update time
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct BinanceMarginBalances {
-    pub(crate) asset: String,                      // asset name
-    pub(crate) wallet_balance: Decimal,            // wallet balance
-    pub(crate) unrealized_profit: Decimal,         // unrealized profit
-    pub(crate) margin_balance: Decimal,            // margin balance
-    pub(crate) maint_margin: Decimal,              // maintenance margin required
-    pub(crate) initial_margin: Decimal, // total initial margin required with current mark price
-    pub(crate) position_initial_margin: Decimal, //initial margin required for positions with current mark price
-    pub(crate) open_order_initial_margin: Decimal, // initial margin required for open orders with current mark price
-    pub(crate) cross_wallet_balance: Decimal,      // crossed wallet balance
-    pub(crate) cross_un_pnl: Decimal,              // unrealized profit of crossed positions
-    pub(crate) available_balance: Decimal,         // available balance
-    pub(crate) max_withdraw_amount: Decimal,       // maximum amount for transfer out
-    pub(crate) margin_available: bool, // whether the asset can be used as margin in Multi-Assets mode
-    pub(crate) update_time: Decimal,   // last update time
+pub(crate) struct BinanceDerivativeBalances<'a> {
+    pub(super) asset: &'a str,             // asset name
+    pub(super) available_balance: Decimal, // available balance
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]

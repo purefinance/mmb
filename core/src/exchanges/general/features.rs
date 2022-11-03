@@ -122,12 +122,6 @@ pub struct OrderTradeOption {
     pub supports_my_trades_from_time: bool,
 }
 
-pub enum BalancePositionOption {
-    NonDerivative,
-    SingleRequest,
-    IndividualRequests,
-}
-
 pub struct ExchangeFeatures {
     /// Exchange client possibility of getting open orders: all in single request or by each currency pair separately
     // TODO Possible redundant cause it's exchange client implementation part and core always requests all open orders
@@ -143,7 +137,6 @@ pub struct ExchangeFeatures {
     pub websocket_options: WebSocketOptions,
     /// If empty content string of RestClient response is normal situation for the exchange
     pub empty_response_is_ok: bool,
-    pub balance_position_option: BalancePositionOption,
 
     // used only for debug
     pub allowed_create_event_source_type: AllowedEventSourceType,
@@ -176,7 +169,6 @@ impl ExchangeFeatures {
             allowed_create_event_source_type,
             allowed_fill_event_source_type,
             allowed_cancel_event_source_type,
-            balance_position_option: BalancePositionOption::NonDerivative,
         }
     }
 }

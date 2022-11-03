@@ -90,17 +90,24 @@ impl ExchangeClient for Bitmex {
         self.parse_get_position(&response)
     }
 
-    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
-        let response = self.request_get_balance().await?;
-
-        self.parse_get_balance(&response)
-    }
-
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
-        let balance_response = self.request_get_balance().await?;
-        let positions_response = self.request_get_position().await?;
-
-        self.parse_balance_and_positions(&balance_response, &positions_response)
+        Ok(match self.settings.is_margin_trading {
+            true => {
+                let (balance_response, position_response) =
+                    tokio::join!(self.request_get_balance(), self.request_get_position());
+                ExchangeBalancesAndPositions {
+                    balances: self.parse_get_balance(&balance_response?)?,
+                    positions: Some(self.parse_derivative_positions(&position_response?)?),
+                }
+            }
+            false => {
+                let balance_response = self.request_get_balance().await?;
+                ExchangeBalancesAndPositions {
+                    balances: self.parse_get_balance(&balance_response)?,
+                    positions: None,
+                }
+            }
+        })
     }
 
     async fn get_my_trades(

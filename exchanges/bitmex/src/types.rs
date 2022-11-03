@@ -568,6 +568,8 @@ pub(crate) struct PositionPayload {
     #[serde(rename = "liquidationPrice")]
     pub(crate) liquidation_price: Option<Price>,
     pub(crate) leverage: Decimal,
+    #[serde(rename = "isOpen")]
+    pub(crate) is_open: bool,
 }
 
 fn deserialize_datetime<'de, D>(deserializer: D) -> Result<DateTime, D::Error>

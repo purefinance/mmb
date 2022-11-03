@@ -3,6 +3,7 @@ use crate::support::BinanceOrderInfo;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use function_name::named;
+use itertools::Itertools;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
@@ -108,17 +109,29 @@ impl ExchangeClient for Binance {
         self.parse_active_positions(&response)
     }
 
-    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
-        let response = self.request_get_balance().await?;
-
-        self.parse_get_balance(&response)
-    }
-
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
-        let balance_response = self.request_get_balance().await?;
-        let positions_response = self.request_get_position().await?;
-
-        self.parse_balance_and_positions(&balance_response, &positions_response)
+        // Binance does return positions from GET request /fapi/v2/account but without liquidation_price field
+        // so we have to use separate requests for balance and positions
+        Ok(match self.settings.is_margin_trading {
+            true => {
+                let (balance_response, position_response) =
+                    tokio::join!(self.request_get_balance(), self.request_get_position());
+                ExchangeBalancesAndPositions {
+                    balances: self.parse_derivative_balance(&balance_response?)?,
+                    positions: Some(
+                        self.get_derivative_positions(&position_response?)?
+                            .try_collect()?,
+                    ),
+                }
+            }
+            false => {
+                let balance_response = self.request_get_balance().await?;
+                ExchangeBalancesAndPositions {
+                    balances: self.parse_spot_balance(&balance_response)?,
+                    positions: None,
+                }
+            }
+        })
     }
 
     async fn get_my_trades(

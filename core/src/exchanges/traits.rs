@@ -104,16 +104,22 @@ pub trait ExchangeClient: Support {
 
     async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError>;
 
+    /// Must be implemented for derivative exchanges
+    /// If exchange doesn't support futures the method must call panic (unimplemented!())
     async fn close_position(
         &self,
         position: &ActivePosition,
         price: Option<Price>,
     ) -> Result<ClosedPosition>;
 
+    /// Must be implemented for derivative exchanges
+    /// /// If exchange doesn't support futures the method must call panic (unimplemented!())
+    /// Note: we should get only open account positions
     async fn get_active_positions(&self) -> Result<Vec<ActivePosition>>;
 
-    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions>;
-
+    /// Getting only balance when spot and balance and positions when derivative
+    /// Should get both balance and positions from single request if possible
+    /// Note: we expect all wallet currencies balances
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions>;
 
     /// # Params

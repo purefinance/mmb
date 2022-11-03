@@ -12,8 +12,8 @@ use hyper::http::request::Builder;
 use hyper::{StatusCode, Uri};
 use itertools::Itertools;
 use mmb_core::exchanges::general::features::{
-    BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
-    RestFillsFeatures, RestFillsType, WebSocketOptions,
+    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
+    RestFillsType, WebSocketOptions,
 };
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::hosts::Hosts;
@@ -28,9 +28,7 @@ use mmb_core::exchanges::traits::{
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{
-    AllowedEventSourceType, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
-};
+use mmb_domain::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId, SpecificCurrencyPair,
@@ -622,7 +620,7 @@ impl Bitmex {
         response: &RestResponse,
     ) -> Result<Vec<ActivePosition>> {
         Ok(self
-            .get_derivative_positions(response)?
+            .parse_derivative_positions(response)?
             .into_iter()
             .map(ActivePosition::new)
             .collect_vec())
@@ -678,12 +676,12 @@ impl Bitmex {
     pub(super) fn parse_get_balance(
         &self,
         response: &RestResponse,
-    ) -> Result<ExchangeBalancesAndPositions> {
+    ) -> Result<Vec<ExchangeBalance>> {
         let raw_balances: Vec<BitmexBalanceInfo> =
             serde_json::from_str(&response.content).context("Failed to parse balance")?;
 
         let currency_rates = self.currency_balance_rates.lock();
-        let common_balances = raw_balances
+        raw_balances
             .into_iter()
             .map(|balance_info| {
                 let currency_code = balance_info.currency.into();
@@ -696,36 +694,32 @@ impl Bitmex {
                     balance: balance_info.balance * balance_rate,
                 })
             })
-            .try_collect()?;
-
-        Ok(ExchangeBalancesAndPositions {
-            balances: common_balances,
-            positions: None,
-        })
+            .try_collect()
     }
 
-    pub(super) fn parse_balance_and_positions(
+    pub(super) fn parse_derivative_positions(
         &self,
-        balance_response: &RestResponse,
-        positions_response: &RestResponse,
-    ) -> Result<ExchangeBalancesAndPositions> {
-        let derivative = self.get_derivative_positions(positions_response)?;
-        let mut balance = self.parse_get_balance(balance_response)?;
-        balance.positions = Some(derivative);
-
-        Ok(balance)
-    }
-
-    fn get_derivative_positions(&self, response: &RestResponse) -> Result<Vec<DerivativePosition>> {
+        response: &RestResponse,
+    ) -> Result<Vec<DerivativePosition>> {
         let bitmex_positions: Vec<PositionPayload> =
             serde_json::from_str(&response.content).context("Failed to parse positions")?;
 
+        let unified_currency_pairs = self.specific_to_unified.read();
         bitmex_positions
             .into_iter()
+            .filter(|position| position.is_open)
             .map(|position| {
-                let currency_pair = self.get_unified_currency_pair(&position.symbol)?;
+                let currency_pair =
+                    unified_currency_pairs
+                        .get(&position.symbol)
+                        .with_context(|| {
+                            format!(
+                                "Failed to get_unified_currency_pair for {:?}",
+                                position.symbol
+                            )
+                        })?;
                 Ok(DerivativePosition {
-                    currency_pair,
+                    currency_pair: *currency_pair,
                     position: position.amount,
                     average_entry_price: position.average_entry_price.unwrap_or_default(),
                     liquidation_price: position.liquidation_price.unwrap_or_default(),
@@ -788,10 +782,10 @@ impl ExchangeClientBuilder for BitmexBuilder {
                 events_channel,
                 lifetime_manager,
             )),
-            features: ExchangeFeatures {
-                open_orders_type: OpenOrdersType::AllCurrencyPair,
-                rest_fills_features: RestFillsFeatures::new(RestFillsType::MyTrades),
-                order_features: OrderFeatures {
+            features: ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::new(RestFillsType::MyTrades),
+                OrderFeatures {
                     maker_only: true,
                     supports_get_order_info_by_client_order_id: true,
                     cancellation_response_from_rest_only_for_errors: true,
@@ -800,25 +794,24 @@ impl ExchangeClientBuilder for BitmexBuilder {
                     supports_already_cancelled_order: true,
                     supports_stop_loss_order: true,
                 },
-                trade_option: OrderTradeOption {
+                OrderTradeOption {
                     supports_trade_time: true,
                     supports_trade_incremented_id: false,
                     supports_get_prints: true,
                     supports_tick_direction: true,
                     supports_my_trades_from_time: true,
                 },
-                websocket_options: WebSocketOptions {
+                WebSocketOptions {
                     execution_notification: true,
                     cancellation_notification: true,
                     supports_ping_pong: true,
                     supports_subscription_response: false,
                 },
-                empty_response_is_ok: EMPTY_RESPONSE_IS_OK,
-                balance_position_option: BalancePositionOption::NonDerivative,
-                allowed_create_event_source_type: AllowedEventSourceType::All,
-                allowed_fill_event_source_type: AllowedEventSourceType::All,
-                allowed_cancel_event_source_type: AllowedEventSourceType::All,
-            },
+                EMPTY_RESPONSE_IS_OK,
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+            ),
         }
     }
 

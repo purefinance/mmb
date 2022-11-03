@@ -6,7 +6,7 @@ use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
-use mmb_core::exchanges::traits::{ExchangeClient, ExchangeError};
+use mmb_core::exchanges::traits::{ExchangeClient, ExchangeError, Support};
 use mmb_domain::events::ExchangeBalancesAndPositions;
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType};
@@ -149,26 +149,23 @@ impl ExchangeClient for InteractiveBrokers {
         self.get_positions_inner().await
     }
 
-    async fn get_balance(&self) -> anyhow::Result<ExchangeBalancesAndPositions> {
-        Ok(ExchangeBalancesAndPositions {
-            balances: self.get_balance_inner().await?,
-            positions: None,
-        })
-    }
-
     /// TODO: Optimize - rewrite with no `Vec` reallocation
     async fn get_balance_and_positions(&self) -> anyhow::Result<ExchangeBalancesAndPositions> {
         // TODO: Optimize - rewrite with no `Vec` reallocation
-        let positions = self
-            .get_positions_inner()
-            .await?
-            .into_iter()
-            .map(|v| v.derivative)
-            .collect();
+        let positions = match self.get_settings().is_margin_trading {
+            true => Some(
+                self.get_positions_inner()
+                    .await?
+                    .into_iter()
+                    .map(|v| v.derivative)
+                    .collect(),
+            ),
+            false => None,
+        };
 
         Ok(ExchangeBalancesAndPositions {
             balances: self.get_balance_inner().await?,
-            positions: Some(positions),
+            positions,
         })
     }
 
