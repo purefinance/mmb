@@ -1,87 +1,32 @@
 #![cfg(test)]
-use binance::binance::Binance;
-use binance::binance::BinanceBuilder;
-use jsonrpc_core::Value;
-use jsonrpc_core_client::transports::ipc;
-use mmb_core::config::parse_settings;
-use mmb_core::disposition_execution::strategy::DispositionStrategy;
-use mmb_core::disposition_execution::{PriceSlot, TradingContext};
-use mmb_core::explanation::Explanation;
-use mmb_core::infrastructure::spawn_future_ok;
-use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
-use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use mmb_core::settings::CurrencyPairSetting;
-use mmb_core::settings::DispositionStrategySettings;
-use mmb_domain::order::snapshot::OrderSnapshot;
-use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
-use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
-use mmb_utils::DateTime;
-use rust_decimal_macros::dec;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
-
 use crate::binance::common::get_min_amount;
 use crate::binance::common::{default_currency_pair, get_prices};
 use crate::get_binance_credentials_or_exit;
+use binance::binance::Binance;
+use binance::binance::BinanceBuilder;
 use core_tests::order::OrderProxy;
+use jsonrpc_core::Value;
+use jsonrpc_core_client::transports::ipc;
+use mmb_core::config::parse_settings;
 use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
-use mmb_domain::events::ExchangeEvent;
+use mmb_core::infrastructure::spawn_future_ok;
+use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
+use mmb_core::settings::CurrencyPairSetting;
 use mmb_domain::market::CurrencyPair;
-use mmb_domain::market::ExchangeAccountId;
-use mmb_domain::order::snapshot::Amount;
+use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
+use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}
 
-impl DispositionStrategySettings for TestStrategySettings {
-    fn exchange_account_id(&self) -> ExchangeAccountId {
-        "Binance_0".parse().expect("for testing")
-    }
-
-    fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("btc".into(), "usdt".into())
-    }
-
-    fn max_amount(&self) -> Amount {
-        dec!(1)
-    }
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn orders_cancelled() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
-    struct TestStrategy;
-
-    impl DispositionStrategy for TestStrategy {
-        fn calculate_trading_context(
-            &mut self,
-            _event: &ExchangeEvent,
-            _now: DateTime,
-            _local_snapshots_service: &LocalSnapshotsService,
-            _explanation: &mut Explanation,
-        ) -> Option<TradingContext> {
-            None
-        }
-
-        fn handle_order_fill(
-            &self,
-            _cloned_order: &Arc<OrderSnapshot>,
-            _price_slot: &PriceSlot,
-            _target_eai: ExchangeAccountId,
-            _cancellation_token: CancellationToken,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        fn configuration_descriptor(&self) -> ConfigurationDescriptor {
-            ConfigurationDescriptor::new("TestStrategy".into(), "orders_cancelled_test".into())
-        }
-    }
 
     let config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
 
@@ -99,8 +44,6 @@ async fn orders_cancelled() {
     let engine = launch_trading_engine(&config, init_settings)
         .await
         .expect("in test");
-
-    engine.start_disposition_executor(Box::new(TestStrategy));
 
     let exchange_settings = settings.core.exchanges[0].clone();
     let context = engine.context().clone();
@@ -155,10 +98,7 @@ async fn orders_cancelled() {
             .cancel_order_or_fail(&created_order, exchange.clone())
             .await;
     } else {
-        panic!(
-            "Incorrect currency pair setting enum type: {:?}",
-            settings.strategy.currency_pair()
-        );
+        panic!("Can't read currency pair from settings");
     }
 
     let rest_client = ipc::connect::<_, MmbRpcClient>(IPC_ADDRESS)
