@@ -336,12 +336,22 @@ where
         );
     }
 
+    let cleanup_orders_service_weak = Arc::downgrade(&cleanup_orders_service);
+
     let _ = spawn_by_timer(
         "cleanup_outdated_orders",
         Duration::ZERO,
         Duration::from_secs(600), // 10 minutes
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-        move || cleanup_orders_service.clone().cleanup_outdated_orders(),
+        move || {
+            let cleanup_orders_service_weak = cleanup_orders_service_weak.clone();
+
+            async move {
+                if let Some(cleanup_orders_service) = cleanup_orders_service_weak.upgrade() {
+                    cleanup_orders_service.cleanup_outdated_orders().await
+                }
+            }
+        },
     );
 
     log::info!("TradingEngine started");
