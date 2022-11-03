@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::binance::binance_builder::default_exchange_account_id;
 use crate::get_binance_credentials_or_exit;
 use binance::binance::BinanceBuilder;
 use mmb_core::config::parse_settings;
@@ -29,7 +30,7 @@ pub struct TestStrategySettings {}
 
 impl DispositionStrategySettings for TestStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
-        "Binance_0".parse().expect("for testing")
+        default_exchange_account_id()
     }
 
     fn currency_pair(&self) -> CurrencyPair {

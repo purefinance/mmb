@@ -1,3 +1,4 @@
+pub mod cleanup_database;
 pub mod events;
 pub mod live_ranges;
 pub mod migrator;

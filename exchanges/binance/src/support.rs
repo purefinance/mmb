@@ -1,4 +1,3 @@
-use mmb_domain::position::{ActivePosition, DerivativePosition};
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use std::any::Any;
 
@@ -9,7 +8,6 @@ use dashmap::DashMap;
 use itertools::Itertools;
 use mmb_domain::order::snapshot::{Amount, Price};
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
@@ -52,49 +50,49 @@ pub struct BinanceOrderInfo {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct BinanceAccountInfo {
-    pub balances: Option<Vec<BinanceSpotBalances>>,
-    pub assets: Option<Vec<BinanceMarginBalances>>,
+pub(crate) struct BinanceAccountInfo {
+    pub(crate) balances: Option<Vec<BinanceSpotBalances>>,
+    pub(crate) assets: Option<Vec<BinanceMarginBalances>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct BinanceSpotBalances {
-    pub asset: String,
-    pub free: Decimal,
-    pub locked: Decimal,
+pub(crate) struct BinanceSpotBalances {
+    pub(crate) asset: String,
+    pub(crate) free: Decimal,
+    pub(crate) locked: Decimal,
 }
 
 // Corresponds https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BinanceMarginBalances {
-    pub asset: String,                      // asset name
-    pub wallet_balance: Decimal,            // wallet balance
-    pub unrealized_profit: Decimal,         // unrealized profit
-    pub margin_balance: Decimal,            // margin balance
-    pub maint_margin: Decimal,              // maintenance margin required
-    pub initial_margin: Decimal,            // total initial margin required with current mark price
-    pub position_initial_margin: Decimal, //initial margin required for positions with current mark price
-    pub open_order_initial_margin: Decimal, // initial margin required for open orders with current mark price
-    pub cross_wallet_balance: Decimal,      // crossed wallet balance
-    pub cross_un_pnl: Decimal,              // unrealized profit of crossed positions
-    pub available_balance: Decimal,         // available balance
-    pub max_withdraw_amount: Decimal,       // maximum amount for transfer out
-    pub margin_available: bool, // whether the asset can be used as margin in Multi-Assets mode
-    pub update_time: Decimal,   // last update time
+pub(crate) struct BinanceMarginBalances {
+    pub(crate) asset: String,                      // asset name
+    pub(crate) wallet_balance: Decimal,            // wallet balance
+    pub(crate) unrealized_profit: Decimal,         // unrealized profit
+    pub(crate) margin_balance: Decimal,            // margin balance
+    pub(crate) maint_margin: Decimal,              // maintenance margin required
+    pub(crate) initial_margin: Decimal, // total initial margin required with current mark price
+    pub(crate) position_initial_margin: Decimal, //initial margin required for positions with current mark price
+    pub(crate) open_order_initial_margin: Decimal, // initial margin required for open orders with current mark price
+    pub(crate) cross_wallet_balance: Decimal,      // crossed wallet balance
+    pub(crate) cross_un_pnl: Decimal,              // unrealized profit of crossed positions
+    pub(crate) available_balance: Decimal,         // available balance
+    pub(crate) max_withdraw_amount: Decimal,       // maximum amount for transfer out
+    pub(crate) margin_available: bool, // whether the asset can be used as margin in Multi-Assets mode
+    pub(crate) update_time: Decimal,   // last update time
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub(super) struct BinancePosition {
     #[serde(rename = "symbol")]
-    pub specific_currency_pair: SpecificCurrencyPair,
-    #[serde(rename = "PositionAmt")]
-    pub position_amount: Amount,
-    #[serde(rename = "LiquidationPrice")]
-    pub liquidation_price: Price,
-    pub leverage: Decimal,
-    #[serde(rename = "PositionSide")]
-    pub position_side: Decimal,
+    pub(super) specific_currency_pair: SpecificCurrencyPair,
+    #[serde(rename = "positionAmt")]
+    pub(super) position_amount: Amount,
+    #[serde(rename = "entryPrice")]
+    pub(super) average_entry_price: Price,
+    #[serde(rename = "liquidationPrice")]
+    pub(super) liquidation_price: Price,
+    pub(super) leverage: Decimal,
 }
 
 #[async_trait]
@@ -406,28 +404,6 @@ impl Binance {
         *self.listen_key.write() = Some(listen_key);
 
         Ok(ws_path)
-    }
-
-    pub(super) fn binance_position_to_active_position(
-        &self,
-        binance_position: BinancePosition,
-    ) -> ActivePosition {
-        let currency_pair = self
-            .get_unified_currency_pair(&binance_position.specific_currency_pair)
-            .with_expect(|| {
-                let specific_currency_pair = binance_position.specific_currency_pair;
-                format!("Failed to get_unified_currency_pair for {specific_currency_pair:?}")
-            });
-
-        let derivative_position = DerivativePosition::new(
-            currency_pair,
-            binance_position.position_amount,
-            dec!(0),
-            binance_position.liquidation_price,
-            binance_position.leverage,
-        );
-
-        ActivePosition::new(derivative_position)
     }
 }
 

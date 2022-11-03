@@ -4,14 +4,14 @@ use anyhow::anyhow;
 use core_tests::order::OrderProxyBuilder;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::order::snapshot::OrderSide;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use rust_decimal_macros::dec;
 use std::time::Duration;
 
 #[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let serum_builder = SerumBuilder::build_account_0().await;
     let exchange_account_id = serum_builder.exchange.exchange_account_id;

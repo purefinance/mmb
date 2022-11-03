@@ -8,7 +8,6 @@ use crate::binance::binance_builder::BinanceBuilder;
 
 async fn init_test_stuff() -> Result<(ExchangeAccountId, WebSocketParams, WebSocketParams)> {
     let exchange = BinanceBuilder::build_account_0().await?.exchange;
-    let exchange_account_id = exchange.exchange_account_id;
 
     let main = exchange
         .get_websocket_params(WebSocketRole::Main)
@@ -20,12 +19,12 @@ async fn init_test_stuff() -> Result<(ExchangeAccountId, WebSocketParams, WebSoc
         .await
         .expect("Failed to get Secondary WebSocket params");
 
-    Ok((exchange_account_id, main, secondary))
+    Ok((exchange.exchange_account_id, main, secondary))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 pub async fn connect_disconnect() {
-    init_infrastructure("log.txt");
+    init_infrastructure();
     let (account, main, secondary) = match init_test_stuff().await {
         Ok((account, main, secondary)) => (account, main, secondary),
         Err(_) => {

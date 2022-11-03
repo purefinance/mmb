@@ -10,7 +10,7 @@ use mmb_core::lifecycle::launcher::EngineBuildConfig;
 use mmb_core::settings::ExchangeSettings;
 use mmb_domain::exchanges::symbol::Precision;
 use mmb_domain::market::{CurrencyPair, ExchangeAccountId, SpecificCurrencyPair};
-use mmb_domain::order::snapshot::{OrderSide, Price};
+use mmb_domain::order::snapshot::{Amount, OrderSide, Price};
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use rust_decimal_macros::dec;
@@ -20,7 +20,8 @@ pub(crate) fn default_currency_pair() -> CurrencyPair {
     CurrencyPair::from_codes("xbt".into(), "usd".into())
 }
 
-// Get top bid price from order book
+/// Returns tuple of execution_price (order with such price supposed to be executed immediately)
+/// and min_price (for orders which must be opened after creation for a some time)
 pub(crate) async fn get_prices(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,
@@ -100,4 +101,11 @@ pub(crate) fn get_bitmex_credentials() -> Result<(String, String)> {
     };
 
     Ok((api_key, secret_key))
+}
+
+pub(crate) fn get_position_value_by_side(side: OrderSide, position: Amount) -> Amount {
+    match side {
+        OrderSide::Buy => position,
+        OrderSide::Sell => -position,
+    }
 }

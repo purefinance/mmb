@@ -1,10 +1,8 @@
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::binance::common::default_currency_pair;
 use core_tests::order::OrderProxy;
 use mmb_domain::events::AllowedEventSourceType;
-use mmb_domain::market::ExchangeAccountId;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use rstest::rstest;
 
 #[rstest]
@@ -15,7 +13,7 @@ use rstest::rstest;
 async fn cancellation_waited_successfully(
     #[case] allowed_cancel_event_source_type: AllowedEventSourceType,
 ) {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let binance_builder = match BinanceBuilder::build_account_0_with_source_types(
         AllowedEventSourceType::All,
@@ -26,15 +24,14 @@ async fn cancellation_waited_successfully(
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
-    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let order_proxy = OrderProxy::new(
-        exchange_account_id,
+        binance_builder.exchange.exchange_account_id,
         Some("FromCancellationWaitedSuccessfullyTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
+        binance_builder.min_price,
         binance_builder.min_amount,
-        default_currency_pair(),
+        binance_builder.default_currency_pair,
     );
 
     let order_ref = order_proxy
@@ -52,9 +49,8 @@ async fn cancellation_waited_successfully(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancellation_waited_failed_fallback() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::build_account_0_with_source_types(
         AllowedEventSourceType::All,
         AllowedEventSourceType::FallbackOnly,
@@ -66,12 +62,12 @@ async fn cancellation_waited_failed_fallback() {
     };
 
     let order_proxy = OrderProxy::new(
-        exchange_account_id,
+        binance_builder.exchange.exchange_account_id,
         Some("FromCancellationWaitedFailedFallbackTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
+        binance_builder.min_price,
         binance_builder.min_amount,
-        default_currency_pair(),
+        binance_builder.default_currency_pair,
     );
 
     let order_ref = order_proxy

@@ -60,5 +60,5 @@ async fn main() -> std::io::Result<()> {
 }
 
 fn configure_logger() {
-    mmb_utils::logger::init_logger_file_named("api.log");
+    mmb_utils::logger::init_logger();
 }

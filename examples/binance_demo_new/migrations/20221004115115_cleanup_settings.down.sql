@@ -1,0 +1,1 @@
+drop table cleanup_settings;

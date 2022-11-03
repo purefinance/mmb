@@ -8,12 +8,12 @@ use mmb_core::exchanges::general::features::{
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let (api_key, secret_key) = match get_bitmex_credentials() {
         Ok((api_key, secret_key)) => (api_key, secret_key),
@@ -72,7 +72,7 @@ async fn get_open_orders() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders_by_currency_pair() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let (api_key, secret_key) = match get_bitmex_credentials() {
         Ok((api_key, secret_key)) => (api_key, secret_key),

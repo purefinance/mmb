@@ -21,6 +21,7 @@ use crate::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use function_name::named;
+use futures::future::join_all;
 use itertools::Itertools;
 use mmb_database::impl_event;
 use mmb_domain::events::{
@@ -231,9 +232,7 @@ impl Exchange {
         exchange_client.set_handle_trade_callback(Box::new({
             let exchange_weak = exchange_weak.clone();
             move |currency_pair, trade| match exchange_weak.upgrade() {
-                Some(exchange) => {
-                    exchange.handle_trade(currency_pair, trade);
-                }
+                Some(exchange) => exchange.handle_trade(currency_pair, trade),
                 None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             }
         }));
@@ -531,6 +530,21 @@ impl Exchange {
         }
     }
 
+    pub async fn close_active_positions(self: Arc<Self>, cancellation_token: CancellationToken) {
+        let positions = self.get_active_positions(cancellation_token.clone()).await;
+
+        tokio::select! {
+            _ = self.close_positions_immediately(&positions, cancellation_token.clone()) => nothing_to_do(),
+            _ = cancellation_token.when_cancelled() => {
+                log::error!(
+                    "Closing active positions for exchange account id {} was interrupted by CancellationToken for list of positions {:?}",
+                    self.exchange_account_id,
+                    positions
+                );
+            },
+        }
+    }
+
     pub fn get_balance_reservation_currency_code(
         &self,
         symbol: Arc<Symbol>,
@@ -538,6 +552,18 @@ impl Exchange {
     ) -> CurrencyCode {
         self.exchange_client
             .get_balance_reservation_currency_code(symbol, side)
+    }
+
+    async fn close_positions_immediately(
+        &self,
+        positions: &[ActivePosition],
+        cancellation_token: CancellationToken,
+    ) {
+        let futures = positions
+            .iter()
+            .map(|position| self.close_position(position, None, cancellation_token.clone()));
+
+        join_all(futures).await;
     }
 
     #[named]

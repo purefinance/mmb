@@ -2,18 +2,16 @@ use mmb_core::exchanges::general::features::*;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
 use mmb_domain::exchanges::commission::Commission;
-use mmb_domain::market::*;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 
-use crate::binance::binance_builder::BinanceBuilder;
-use crate::binance::common::default_currency_pair;
+use crate::binance::binance_builder::{default_exchange_account_id, BinanceBuilder};
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn open_orders_exists() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
@@ -25,18 +23,18 @@ async fn open_orders_exists() {
         exchange_account_id,
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
+        binance_builder.min_price,
         binance_builder.min_amount,
-        default_currency_pair(),
+        binance_builder.default_currency_pair,
     );
 
     let order_proxy2 = OrderProxy::new(
         exchange_account_id,
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
+        binance_builder.min_price,
         binance_builder.min_amount,
-        default_currency_pair(),
+        binance_builder.default_currency_pair,
     );
 
     let _ = order_proxy1
@@ -67,9 +65,9 @@ async fn open_orders_exists() {
 /// It's matter to check branch for OneCurrencyPair variant
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders_for_each_currency_pair_separately() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
+    let exchange_account_id = default_exchange_account_id();
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
     let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
@@ -105,9 +103,9 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
+        binance_builder.min_price,
         binance_builder.min_amount,
-        default_currency_pair(),
+        binance_builder.default_currency_pair,
     );
 
     first_order_proxy
@@ -119,9 +117,9 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
+        binance_builder.min_price,
         binance_builder.min_amount,
-        default_currency_pair(),
+        binance_builder.default_currency_pair,
     );
 
     second_order_proxy

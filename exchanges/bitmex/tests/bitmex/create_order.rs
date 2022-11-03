@@ -3,7 +3,7 @@ use core_tests::order::OrderProxy;
 use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_domain::order::event::OrderEventType;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use rstest::rstest;
 use rust_decimal_macros::dec;
 use std::time::Duration;
@@ -14,7 +14,7 @@ use std::time::Duration;
 #[case::non_fallback(AllowedEventSourceType::NonFallback)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_successfully(#[case] allowed_create_event_source_type: AllowedEventSourceType) {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let mut bitmex_builder = match BitmexBuilder::build_account_with_source_types(
         allowed_create_event_source_type,
@@ -31,7 +31,7 @@ async fn create_successfully(#[case] allowed_create_event_source_type: AllowedEv
         bitmex_builder.exchange.exchange_account_id,
         Some("FromCreateSuccessfullyTest".to_owned()),
         CancellationToken::default(),
-        bitmex_builder.execution_price,
+        bitmex_builder.min_price,
         bitmex_builder.min_amount,
         bitmex_builder.default_currency_pair,
     );
@@ -66,7 +66,7 @@ async fn create_successfully(#[case] allowed_create_event_source_type: AllowedEv
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn should_fail() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(bitmex_builder) => bitmex_builder,

@@ -16,7 +16,7 @@ use mmb_core::settings::DispositionStrategySettings;
 use mmb_domain::order::snapshot::OrderSnapshot;
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::SpawnFutureFlags;
+use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::DateTime;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::binance::common::get_min_amount;
-use crate::binance::common::{default_currency_pair, get_default_price};
+use crate::binance::common::{default_currency_pair, get_prices};
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
@@ -92,13 +92,8 @@ async fn orders_cancelled() {
     let mut settings =
         parse_settings::<TestStrategySettings>(settings, &credentials).expect("in test");
 
-    let mut exchange_settings = &mut settings.core.exchanges[0];
-    exchange_settings.api_key = api_key.clone();
-    exchange_settings.secret_key = secret_key;
-    let exchange_account_id = exchange_settings.exchange_account_id;
-
-    let is_margin_trading = exchange_settings.is_margin_trading;
-    let api_key = exchange_settings.api_key.clone();
+    settings.core.exchanges[0].api_key = api_key.clone();
+    settings.core.exchanges[0].api_key = secret_key;
 
     let init_settings = InitSettings::Directly(settings.clone());
     let engine = launch_trading_engine(&config, init_settings)
@@ -107,10 +102,11 @@ async fn orders_cancelled() {
 
     engine.start_disposition_executor(Box::new(TestStrategy));
 
+    let exchange_settings = settings.core.exchanges[0].clone();
     let context = engine.context().clone();
     let exchange = context
         .exchanges
-        .get(&exchange_account_id)
+        .get(&exchange_settings.exchange_account_id)
         .expect("in test");
 
     if let CurrencyPairSetting::Ordinary { base, quote } = settings
@@ -122,39 +118,35 @@ async fn orders_cancelled() {
         .expect("in test")
     {
         let test_currency_pair = CurrencyPair::from_codes(*base, *quote);
-        let _ = exchange.cancel_all_orders(test_currency_pair).await;
-        let price = get_default_price(
-            get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
-            &Binance::make_hosts(is_margin_trading),
-            &api_key,
-            exchange_account_id,
-            is_margin_trading,
-        )
-        .await;
-
         let symbol = exchange
             .symbols
             .get(&test_currency_pair)
-            .expect("can't find symbol")
+            .with_expect(|| format!("Can't find symbol {test_currency_pair})"))
             .value()
             .clone();
+        let _ = exchange.cancel_all_orders(test_currency_pair).await;
+        let (execution_price, min_price) = get_prices(
+            get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
+            &Binance::make_hosts(exchange_settings.is_margin_trading),
+            &exchange_settings,
+            &symbol.price_precision,
+        )
+        .await;
 
         let amount = get_min_amount(
             get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
-            &Binance::make_hosts(is_margin_trading),
-            &api_key,
-            price,
+            &Binance::make_hosts(exchange_settings.is_margin_trading),
+            &exchange_settings,
+            execution_price,
             &symbol,
-            exchange_account_id,
-            is_margin_trading,
         )
         .await;
 
         let order = OrderProxy::new(
-            exchange_account_id,
+            exchange_settings.exchange_account_id,
             Some("FromOrdersCancelledTest".to_owned()),
             CancellationToken::default(),
-            price,
+            min_price,
             amount,
             default_currency_pair(),
         );

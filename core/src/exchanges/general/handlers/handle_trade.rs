@@ -7,6 +7,10 @@ use crate::exchanges::{general::exchange::Exchange, timeouts::timeout_manager};
 
 impl Exchange {
     pub fn handle_trade(&self, currency_pair: CurrencyPair, trade: Trade) {
+        if !self.exchange_client.get_settings().subscribe_to_market_data {
+            return;
+        }
+
         let trades = vec![trade];
         let mut trades_event = TradesEvent {
             exchange_account_id: self.exchange_account_id,
@@ -20,17 +24,8 @@ impl Exchange {
         self.last_trades_update_time
             .insert(market_id, trades_event.receipt_time);
 
-        if !self.exchange_client.get_settings().subscribe_to_market_data {
-            return;
-        }
-
-        if self.symbols.contains_key(&trades_event.currency_pair)
-            && !self
-                .features
-                .trade_option
-                .notification_on_each_currency_pair
-        {
-            log::trace!(
+        if cfg!(debug_assert) && !self.symbols.contains_key(&trades_event.currency_pair) {
+            log::error!(
                 "Unknown currency pair {} for trades on {}",
                 trades_event.currency_pair,
                 self.exchange_account_id
