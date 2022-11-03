@@ -6,7 +6,7 @@ use crate::connectivity::{
 use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::block_reasons::WEBSOCKET_DISCONNECTED;
 use crate::exchanges::exchange_blocker::{BlockType, ExchangeBlocker};
-use crate::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
+use crate::exchanges::general::features::ExchangeFeatures;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::exchanges::general::request_type::RequestType;
@@ -25,8 +25,7 @@ use futures::future::join_all;
 use itertools::Itertools;
 use mmb_database::impl_event;
 use mmb_domain::events::{
-    BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
-    LiquidationPriceEvent, Trade,
+    BalanceUpdateEvent, ExchangeBalancesAndPositions, ExchangeEvent, LiquidationPriceEvent, Trade,
 };
 use mmb_domain::exchanges::commission::Commission;
 use mmb_domain::exchanges::symbol::Symbol;
@@ -573,44 +572,49 @@ impl Exchange {
         price: Option<Decimal>,
         cancellation_token: CancellationToken,
     ) -> Option<ClosedPosition> {
-        log::info!("Closing position {}", position.id);
+        match self.exchange_client.get_settings().is_margin_trading {
+            true => {
+                log::info!("Closing position {}", position.id);
 
-        for retry_attempt in 1..=5 {
-            self.timeout_manager
-                .reserve_when_available(
-                    self.exchange_account_id,
-                    RequestType::GetActivePositions,
-                    None,
-                    cancellation_token.clone(),
-                )
-                .await;
+                for retry_attempt in 1..=5 {
+                    self.timeout_manager
+                        .reserve_when_available(
+                            self.exchange_account_id,
+                            RequestType::GetActivePositions,
+                            None,
+                            cancellation_token.clone(),
+                        )
+                        .await;
 
-            log::info!("Closing position request reserved {}", position.id);
+                    log::info!("Closing position request reserved {}", position.id);
 
-            match self.exchange_client.close_position(position, price).await {
-                Ok(closed_position) => {
-                    log::info!("Closed position {}", position.id);
-                    return Some(closed_position);
+                    match self.exchange_client.close_position(position, price).await {
+                        Ok(closed_position) => {
+                            log::info!("Closed position {}", position.id);
+                            return Some(closed_position);
+                        }
+                        Err(error) => {
+                            print_warn(
+                                retry_attempt,
+                                function_name!(),
+                                &self.exchange_account_id,
+                                error,
+                            );
+                            sleep(Duration::from_secs(1)).await;
+                        }
+                    }
                 }
-                Err(error) => {
-                    print_warn(
-                        retry_attempt,
-                        function_name!(),
-                        &self.exchange_account_id,
-                        error,
-                    );
-                    sleep(Duration::from_secs(1)).await;
-                }
+
+                log::warn!(
+                    "Close position with id {} for {} reached maximum retries - reconnecting",
+                    position.id,
+                    self.exchange_account_id
+                );
+
+                None
             }
+            false => panic!("Impossible to close position for non-derivative market"),
         }
-
-        log::warn!(
-            "Close position with id {} for {} reached maximum retries - reconnecting",
-            position.id,
-            self.exchange_account_id
-        );
-
-        None
     }
 
     #[named]
@@ -618,140 +622,51 @@ impl Exchange {
         &self,
         cancellation_token: CancellationToken,
     ) -> Vec<ActivePosition> {
-        for retry_attempt in 1..=5 {
-            self.timeout_manager
-                .reserve_when_available(
-                    self.exchange_account_id,
-                    RequestType::GetActivePositions,
-                    None,
-                    cancellation_token.clone(),
-                )
-                .await;
+        match self.exchange_client.get_settings().is_margin_trading {
+            true => {
+                for retry_attempt in 1..=5 {
+                    self.timeout_manager
+                        .reserve_when_available(
+                            self.exchange_account_id,
+                            RequestType::GetActivePositions,
+                            None,
+                            cancellation_token.clone(),
+                        )
+                        .await;
 
-            match self.get_active_positions_by_features().await {
-                Ok(positions) => return positions,
-                Err(error) => {
-                    print_warn(
-                        retry_attempt,
-                        function_name!(),
-                        &self.exchange_account_id,
-                        error,
-                    );
-                    sleep(Duration::from_secs(1)).await;
+                    match self.exchange_client.get_active_positions().await {
+                        Ok(positions) => return positions,
+                        Err(error) => {
+                            print_warn(
+                                retry_attempt,
+                                function_name!(),
+                                &self.exchange_account_id,
+                                error,
+                            );
+                            sleep(Duration::from_secs(1)).await;
+                        }
+                    }
                 }
-            }
-        }
 
-        log::warn!(
-            "Get active positions with for {} reached maximum retries - reconnecting",
-            self.exchange_account_id
-        );
+                log::warn!(
+                    "Get active positions with for {} reached maximum retries - reconnecting",
+                    self.exchange_account_id
+                );
 
-        Vec::new()
-    }
-
-    async fn get_active_positions_by_features(&self) -> Result<Vec<ActivePosition>> {
-        match self.features.balance_position_option {
-            BalancePositionOption::IndividualRequests => {
-                self.exchange_client.get_active_positions().await
+                Vec::new()
             }
-            BalancePositionOption::SingleRequest => {
-                let result = self.exchange_client.get_balance_and_positions().await?;
-                Ok(result
-                    .positions
-                    .context("Positions is none.")?
-                    .into_iter()
-                    .map(ActivePosition::new)
-                    .collect_vec())
-            }
-            BalancePositionOption::NonDerivative => {
-                // TODO Should be implemented manually closing positions for non-derivative exchanges
-                Ok(Vec::new())
-            }
+            false => panic!("Impossible to get active positions for non-derivative market"),
         }
     }
 
-    async fn get_balance_and_positions(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Result<ExchangeBalancesAndPositions> {
-        self.timeout_manager
-            .reserve_when_available(
-                self.exchange_account_id,
-                RequestType::GetBalance,
-                None,
-                cancellation_token.clone(),
-            )
-            .await;
-
-        let balance_result = match self.features.balance_position_option {
-            BalancePositionOption::NonDerivative => {
-                return self.exchange_client.get_balance().await
+    fn update_positions_leverage(&self, positions: &[DerivativePosition]) {
+        for position in positions {
+            if let Some(mut leverage) = self
+                .leverage_by_currency_pair
+                .get_mut(&position.currency_pair)
+            {
+                *leverage.value_mut() = position.leverage;
             }
-            BalancePositionOption::SingleRequest => {
-                self.exchange_client.get_balance_and_positions().await?
-            }
-            BalancePositionOption::IndividualRequests => {
-                let balances_result = self.exchange_client.get_balance().await?;
-
-                if balances_result.positions.is_some() {
-                    bail!("Exchange supports SingleRequest but Individual is used")
-                }
-
-                self.timeout_manager
-                    .reserve_when_available(
-                        self.exchange_account_id,
-                        RequestType::GetActivePositions,
-                        None,
-                        cancellation_token.clone(),
-                    )
-                    .await;
-
-                let position_result = self.exchange_client.get_active_positions().await?;
-
-                let balances = balances_result.balances;
-                let positions = position_result
-                    .into_iter()
-                    .map(|x| x.derivative)
-                    .collect_vec();
-
-                ExchangeBalancesAndPositions {
-                    balances,
-                    positions: Some(positions),
-                }
-            }
-        };
-
-        if let Some(positions) = &balance_result.positions {
-            for position in positions {
-                if let Some(mut leverage) = self
-                    .leverage_by_currency_pair
-                    .get_mut(&position.currency_pair)
-                {
-                    *leverage.value_mut() = position.leverage;
-                }
-            }
-        }
-
-        Ok(balance_result)
-    }
-
-    /// Remove currency pairs that aren't supported by the current exchange
-    /// if all currencies aren't supported return None
-    fn remove_unknown_currency_pairs(
-        &self,
-        positions: Option<Vec<DerivativePosition>>,
-        balances: Vec<ExchangeBalance>,
-    ) -> ExchangeBalancesAndPositions {
-        let positions = positions.map(|x| {
-            x.into_iter()
-                .filter(|y| self.symbols.contains_key(&y.currency_pair))
-                .collect_vec()
-        });
-
-        ExchangeBalancesAndPositions {
-            balances,
-            positions,
         }
     }
 
@@ -785,16 +700,20 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<ExchangeBalancesAndPositions> {
         for retry_attempt in 1..=5 {
-            let balances_and_positions = self
-                .get_balance_and_positions(cancellation_token.clone())
+            self.timeout_manager
+                .reserve_when_available(
+                    self.exchange_account_id,
+                    RequestType::GetBalance,
+                    None,
+                    cancellation_token.clone(),
+                )
                 .await;
-
-            match balances_and_positions {
-                Ok(ExchangeBalancesAndPositions {
-                    positions,
-                    balances,
-                }) => {
-                    if balances.is_empty() {
+            match self.exchange_client.get_balance_and_positions().await {
+                Ok(balance_and_positions) => {
+                    if let Some(positions) = &balance_and_positions.positions {
+                        self.update_positions_leverage(positions);
+                    }
+                    if balance_and_positions.balances.is_empty() {
                         print_warn(
                             retry_attempt,
                             function_name!(),
@@ -804,9 +723,7 @@ impl Exchange {
                         continue;
                     }
 
-                    return Ok(self.handle_balances_and_positions(
-                        self.remove_unknown_currency_pairs(positions, balances),
-                    ));
+                    return Ok(self.handle_balances_and_positions(balance_and_positions));
                 }
                 Err(error) => print_warn(
                     retry_attempt,

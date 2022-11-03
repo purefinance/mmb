@@ -18,8 +18,9 @@ use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
-use super::support::{BinanceOrderInfo, BinanceSpotBalances};
-use crate::support::{BinanceAccountInfo, BinanceMarginBalances, BinancePosition};
+use super::support::{
+    BinanceDerivativeAccountInfo, BinanceOrderInfo, BinancePosition, BinanceSpotAccountInfo,
+};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::{
@@ -45,7 +46,7 @@ use mmb_core::exchanges::{
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
 use mmb_domain::events::AllowedEventSourceType;
-use mmb_domain::events::{ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
+use mmb_domain::events::{ExchangeBalance, ExchangeEvent, TradeId};
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId};
 use mmb_domain::market::{ExchangeAccountId, SpecificCurrencyPair};
@@ -523,48 +524,6 @@ impl Binance {
         }
     }
 
-    pub(super) fn get_spot_exchange_balances_and_positions(
-        &self,
-        raw_balances: Vec<BinanceSpotBalances>,
-    ) -> ExchangeBalancesAndPositions {
-        let balances = raw_balances
-            .iter()
-            .filter_map(|balance| {
-                self.get_currency_code(&balance.asset.as_str().into())
-                    .map(|currency_code| ExchangeBalance {
-                        currency_code,
-                        balance: balance.free,
-                    })
-            })
-            .collect_vec();
-
-        ExchangeBalancesAndPositions {
-            balances,
-            positions: None,
-        }
-    }
-
-    pub(super) fn get_margin_exchange_balances_and_positions(
-        &self,
-        raw_balances: Vec<BinanceMarginBalances>,
-    ) -> ExchangeBalancesAndPositions {
-        let balances = raw_balances
-            .iter()
-            .filter_map(|balance| {
-                self.get_currency_code(&balance.asset.as_str().into())
-                    .map(|currency_code| ExchangeBalance {
-                        currency_code,
-                        balance: balance.available_balance,
-                    })
-            })
-            .collect_vec();
-
-        ExchangeBalancesAndPositions {
-            balances,
-            positions: None,
-        }
-    }
-
     pub(super) fn get_order_id(
         &self,
         response: &RestResponse,
@@ -723,7 +682,7 @@ impl Binance {
             .try_collect()
     }
 
-    fn get_derivative_positions<'a>(
+    pub(super) fn get_derivative_positions<'a>(
         &'a self,
         response: &RestResponse,
     ) -> Result<impl Iterator<Item = Result<DerivativePosition>> + 'a> {
@@ -767,39 +726,44 @@ impl Binance {
             .await
     }
 
-    pub(super) fn parse_get_balance(
+    pub(super) fn parse_spot_balance(
         &self,
         response: &RestResponse,
-    ) -> Result<ExchangeBalancesAndPositions> {
-        let binance_account_info: BinanceAccountInfo =
+    ) -> Result<Vec<ExchangeBalance>> {
+        let binance_account_info: BinanceSpotAccountInfo =
             serde_json::from_str(&response.content).context("Unable to parse account info")?;
 
-        Ok(match self.settings.is_margin_trading {
-            true => self.get_margin_exchange_balances_and_positions(
-                binance_account_info
-                    .assets
-                    .context("Unable to parse margin balances")?,
-            ),
-            false => self.get_spot_exchange_balances_and_positions(
-                binance_account_info
-                    .balances
-                    .context("Unable to parse spot balances")?,
-            ),
-        })
+        Ok(binance_account_info
+            .balances
+            .iter()
+            .filter_map(|balance| {
+                self.get_currency_code(&balance.asset.into())
+                    .map(|currency_code| ExchangeBalance {
+                        currency_code,
+                        balance: balance.free,
+                    })
+            })
+            .collect_vec())
     }
 
-    pub(super) fn parse_balance_and_positions(
+    pub(super) fn parse_derivative_balance(
         &self,
-        balance_response: &RestResponse,
-        positions_response: &RestResponse,
-    ) -> Result<ExchangeBalancesAndPositions> {
-        let derivative = self
-            .get_derivative_positions(positions_response)?
-            .try_collect()?;
-        let mut balances_and_positions = self.parse_get_balance(balance_response)?;
-        balances_and_positions.positions = Some(derivative);
+        response: &RestResponse,
+    ) -> Result<Vec<ExchangeBalance>> {
+        let binance_account_info: BinanceDerivativeAccountInfo =
+            serde_json::from_str(&response.content).context("Unable to parse account info")?;
 
-        Ok(balances_and_positions)
+        Ok(binance_account_info
+            .assets
+            .iter()
+            .filter_map(|balance| {
+                self.get_currency_code(&balance.asset.into())
+                    .map(|currency_code| ExchangeBalance {
+                        currency_code,
+                        balance: balance.available_balance,
+                    })
+            })
+            .collect_vec())
     }
 
     #[named]
