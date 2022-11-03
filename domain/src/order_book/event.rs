@@ -2,6 +2,7 @@ use mmb_utils::DateTime;
 
 use crate::market::CurrencyPair;
 use crate::market::*;
+use crate::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use crate::order_book::order_book_data::OrderBookData;
 use std::sync::Arc;
 
@@ -50,5 +51,9 @@ impl OrderBookEvent {
 
     pub fn market_account_id(&self) -> MarketAccountId {
         MarketAccountId::new(self.exchange_account_id, self.currency_pair)
+    }
+
+    pub fn to_orderbook_snapshot(&self) -> LocalOrderBookSnapshot {
+        self.data.to_orderbook_snapshot(self.creation_time)
     }
 }

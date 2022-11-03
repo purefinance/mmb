@@ -1,6 +1,6 @@
 use crate::order::snapshot::SortedOrderData;
 use crate::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
-use chrono::Utc;
+use mmb_utils::DateTime;
 /// Macros allows to specify in much clearer way (then usual imperative code) a structure of
 /// order book with template:\
 /// order_book_data![\
@@ -55,8 +55,8 @@ impl OrderBookData {
         Self { asks, bids }
     }
 
-    pub fn to_local_order_book_snapshot(&self) -> LocalOrderBookSnapshot {
-        LocalOrderBookSnapshot::new(self.asks.clone(), self.bids.clone(), Utc::now())
+    pub fn to_orderbook_snapshot(&self, update_time: DateTime) -> LocalOrderBookSnapshot {
+        LocalOrderBookSnapshot::new(self.asks.clone(), self.bids.clone(), update_time)
     }
 
     /// Perform inner asks and bids update

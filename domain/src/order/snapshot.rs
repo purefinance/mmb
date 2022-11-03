@@ -618,7 +618,7 @@ impl OrderSnapshot {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceByOrderSide {
     pub top_bid: Option<Price>,
     pub top_ask: Option<Price>,
@@ -627,5 +627,11 @@ pub struct PriceByOrderSide {
 impl PriceByOrderSide {
     pub fn new(top_bid: Option<Price>, top_ask: Option<Price>) -> Self {
         Self { top_bid, top_ask }
+    }
+}
+
+impl Display for PriceByOrderSide {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "ask {:?}, bid {:?}", self.top_ask, self.top_bid)
     }
 }

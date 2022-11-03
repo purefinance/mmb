@@ -1,10 +1,9 @@
-use mmb_utils::DateTime;
-use rust_decimal_macros::dec;
-
 use crate::market::*;
 use crate::order::snapshot::*;
 use crate::order::snapshot::{PriceByOrderSide, SortedOrderData};
 use crate::order_book::order_book_data::OrderBookData;
+use mmb_utils::DateTime;
+use rust_decimal_macros::dec;
 
 /// Fields from OrderSnapshot for exclude order
 pub struct DataToExcludeOrder {
@@ -21,6 +20,16 @@ impl DataToExcludeOrder {
             side,
         }
     }
+}
+
+pub enum ResultAskBidFix {
+    Ok,
+    Fixed {
+        /// Original top ask price
+        top_ask: Price,
+        /// Original top bid price
+        top_bid: Price,
+    },
 }
 
 /// Snapshot of certain ask and bids collection
@@ -145,6 +154,44 @@ impl LocalOrderBookSnapshot {
         };
 
         Some((top_ask + top_bid) * dec!(0.5))
+    }
+
+    /// Removed asks and bids between top price levels if it's crossed
+    pub fn fix_asks_bids_if_needed(&mut self) -> ResultAskBidFix {
+        match self.get_top_prices() {
+            PriceByOrderSide {
+                top_ask: Some(top_ask),
+                top_bid: Some(top_bid),
+            } if top_ask <= top_bid => {
+                self.fix_asks_bids(top_ask, top_bid);
+                ResultAskBidFix::Fixed { top_ask, top_bid }
+            }
+            _ => ResultAskBidFix::Ok,
+        }
+    }
+
+    fn fix_asks_bids(&mut self, top_ask: Price, top_bid: Price) {
+        loop {
+            if let Some((&bid_price, _)) = self.bids.iter().rev().next() {
+                if bid_price >= top_ask {
+                    self.bids.remove(&bid_price);
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        loop {
+            if let Some((&ask_price, _)) = self.asks.iter().next() {
+                if ask_price <= top_bid {
+                    self.asks.remove(&ask_price);
+                    continue;
+                }
+            }
+
+            break;
+        }
     }
 }
 

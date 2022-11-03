@@ -165,7 +165,7 @@ mod test {
             dec!(1) => dec!(6),
             dec!(2) => dec!(9),
         ]
-        .to_local_order_book_snapshot();
+        .to_orderbook_snapshot(Utc::now());
 
         let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
 
@@ -181,7 +181,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn calculate_amount_now_using_one_step_without_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
-        let snapshot = order_book_data!().to_local_order_book_snapshot();
+        let snapshot = order_book_data!().to_orderbook_snapshot(Utc::now());
 
         let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
 

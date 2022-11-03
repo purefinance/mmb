@@ -135,6 +135,12 @@ pub struct MarketId {
     pub currency_pair: CurrencyPair,
 }
 
+impl Display for MarketId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}|{}", self.exchange_id, self.currency_pair)
+    }
+}
+
 impl MarketId {
     pub fn new(exchange_id: ExchangeId, currency_pair: CurrencyPair) -> Self {
         MarketId {
@@ -149,6 +155,12 @@ impl MarketId {
 pub struct MarketAccountId {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
+}
+
+impl Display for MarketAccountId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}|{}", self.exchange_account_id, self.currency_pair)
+    }
 }
 
 impl MarketAccountId {
