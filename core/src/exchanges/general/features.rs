@@ -94,9 +94,6 @@ impl OrderFeatures {
 pub struct OrderTradeOption {
     pub supports_trade_time: bool,
     pub supports_trade_incremented_id: bool,
-
-    // At ByBit subscription to Print notification only available for all currency pairs
-    pub notification_on_each_currency_pair: bool,
     pub supports_get_prints: bool,
     pub supports_tick_direction: bool,
     pub supports_my_trades_from_time: bool,

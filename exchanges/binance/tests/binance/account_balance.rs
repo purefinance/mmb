@@ -1,10 +1,10 @@
-use mmb_utils::{cancellation_token::CancellationToken, logger::init_logger_file_named};
+use mmb_utils::{cancellation_token::CancellationToken, logger::init_logger};
 
 use super::binance_builder::BinanceBuilder;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_balance_successfully() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(v) => v,

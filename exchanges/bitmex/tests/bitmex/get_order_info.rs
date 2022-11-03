@@ -2,12 +2,12 @@ use crate::bitmex::bitmex_builder::BitmexBuilder;
 use core_tests::order::OrderProxy;
 use mmb_domain::order::snapshot::ReservationId;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(bitmex_builder) => bitmex_builder,

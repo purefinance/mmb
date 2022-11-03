@@ -187,7 +187,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn panic_with_deny_cancellation() -> Result<()> {
-        init_infrastructure("log.txt");
+        init_infrastructure();
         // Arrange
         let manager = AppLifetimeManager::new(CancellationToken::new());
         keep_lifetime_manager(manager);
@@ -211,7 +211,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn panic_without_deny_cancellation() -> Result<()> {
-        init_infrastructure("log.txt");
+        init_infrastructure();
         // Arrange
         let application_manager = AppLifetimeManager::new(CancellationToken::new());
         keep_lifetime_manager(application_manager);

@@ -36,7 +36,7 @@ async fn cancelled_successfully() {
 #[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancel_all_orders() {
-    init_infrastructure("log.txt");
+    init_infrastructure();
 
     let serum_builder = SerumBuilder::build_account_0().await;
     let exchange_account_id = serum_builder.exchange.exchange_account_id;

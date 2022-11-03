@@ -3,19 +3,20 @@ use crate::bitmex::common::get_bitmex_credentials;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::features::{
-    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
-    RestFillsType, WebSocketOptions,
+    BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
+    RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::logger::init_logger_file_named;
+use mmb_utils::logger::init_logger;
 use std::time::Duration;
+use tokio::time::sleep;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_my_trades() {
-    init_logger_file_named("log.txt");
+    init_logger();
 
     let (api_key, secret_key) = match get_bitmex_credentials() {
         Ok((api_key, secret_key)) => (api_key, secret_key),
@@ -28,7 +29,7 @@ async fn get_my_trades() {
         quote: "USD".into(),
     }]);
 
-    let features = ExchangeFeatures::new(
+    let mut features = ExchangeFeatures::new(
         OpenOrdersType::OneCurrencyPair,
         RestFillsFeatures::new(RestFillsType::MyTrades),
         OrderFeatures {
@@ -42,6 +43,7 @@ async fn get_my_trades() {
         AllowedEventSourceType::default(),
         AllowedEventSourceType::default(),
     );
+    features.balance_position_option = BalancePositionOption::IndividualRequests;
 
     let bitmex_builder = BitmexBuilder::build_account_with_setting(settings, features).await;
 
@@ -60,6 +62,9 @@ async fn get_my_trades() {
         .await
         .expect("in test");
 
+    // Need wait some time until order will be filled
+    let _ = sleep(Duration::from_secs(5));
+
     let currency_pair = order_proxy.currency_pair;
     let symbol = bitmex_builder
         .exchange
@@ -76,12 +81,26 @@ async fn get_my_trades() {
 
     match trades {
         RequestResult::Success(data) => {
-            assert_eq!(data.len(), 1);
+            let trade = data.first().expect("No one trade received");
+            assert_eq!(
+                trade.exchange_order_id.clone(),
+                order_ref
+                    .exchange_order_id()
+                    .expect("Failed to get order's exchange id"),
+            )
         }
         RequestResult::Error(err) => panic!("Failed to get trades: {err:?}"),
     }
 
-    order_proxy
-        .cancel_order_or_fail(&order_ref, bitmex_builder.exchange.clone())
+    let active_positions = bitmex_builder
+        .exchange
+        .get_active_positions(order_proxy.cancellation_token.clone())
         .await;
+    let position_info = active_positions.first().expect("Have no active positions");
+
+    let _ = bitmex_builder
+        .exchange
+        .close_position(position_info, None, order_proxy.cancellation_token.clone())
+        .await
+        .expect("Failed to get closed position");
 }
