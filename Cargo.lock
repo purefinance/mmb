@@ -2308,7 +2308,6 @@ dependencies = [
  "paste",
  "pretty_assertions",
  "rand 0.8.5",
- "regex",
  "rstest",
  "rust_decimal",
  "rust_decimal_macros",

@@ -2275,7 +2275,6 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.1",
  "paste",
- "regex",
  "rust_decimal",
  "rust_decimal_macros",
  "scopeguard",
