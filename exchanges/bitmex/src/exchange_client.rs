@@ -136,4 +136,9 @@ impl ExchangeClient for Bitmex {
 
         Ok(symbols)
     }
+
+    async fn get_server_time(&self) -> Option<Result<i64>> {
+        // TODO Need to receive Bitmex server time
+        None
+    }
 }

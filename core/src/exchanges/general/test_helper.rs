@@ -113,6 +113,10 @@ impl ExchangeClient for TestClient {
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
         unimplemented!("doesn't need in UT")
     }
+
+    async fn get_server_time(&self) -> Option<Result<i64>> {
+        unimplemented!("doesn't need in UT")
+    }
 }
 
 #[async_trait]

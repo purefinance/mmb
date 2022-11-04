@@ -1,6 +1,6 @@
 use super::binance::Binance;
 use crate::support::BinanceOrderInfo;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use function_name::named;
 use itertools::Itertools;
@@ -152,6 +152,13 @@ impl ExchangeClient for Binance {
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
         let response = &self.request_all_symbols().await?;
         self.parse_all_symbols(response)
+    }
+
+    async fn get_server_time(&self) -> Option<Result<i64>> {
+        match self.request_get_server_time().await {
+            Ok(response) => Some(self.parse_get_server_time(&response)),
+            Err(err) => Some(Err(anyhow!("Get server time request failed: {err:?}"))),
+        }
     }
 }
 

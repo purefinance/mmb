@@ -167,4 +167,8 @@ impl ExchangeClient for Serum {
 
         symbols
     }
+
+    async fn get_server_time(&self) -> Option<Result<i64>> {
+        None
+    }
 }

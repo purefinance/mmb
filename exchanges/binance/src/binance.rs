@@ -1059,6 +1059,29 @@ impl Binance {
 
         Ok(u64_to_date_time(event_time_u64))
     }
+
+    #[named]
+    pub(super) async fn request_get_server_time(&self) -> Result<RestResponse, ExchangeError> {
+        let path = self.get_uri_path("/fapi/v1/time", "/api/v3/time");
+        let builder = UriBuilder::from_path(path);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), false);
+
+        self.rest_client
+            .get(uri, function_name!(), "".to_string())
+            .await
+    }
+
+    pub(super) fn parse_get_server_time(&self, response: &RestResponse) -> Result<i64> {
+        #[derive(Deserialize)]
+        struct ServerTime {
+            #[serde(rename = "serverTime")]
+            time: i64,
+        }
+
+        let server_time_struct: ServerTime = serde_json::from_str(&response.content)
+            .context("Failed to parse Binance get time response")?;
+        Ok(server_time_struct.time)
+    }
 }
 
 pub(super) fn get_server_order_side(side: OrderSide) -> &'static str {
