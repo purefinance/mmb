@@ -252,4 +252,8 @@ impl ExchangeClient for InteractiveBrokers {
 
         Ok(symbols)
     }
+
+    async fn get_server_time(&self) -> Option<anyhow::Result<i64>> {
+        todo!()
+    }
 }

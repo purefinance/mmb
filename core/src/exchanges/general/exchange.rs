@@ -49,7 +49,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::ops::DerefMut;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::sync::{broadcast, oneshot};
@@ -135,6 +135,8 @@ pub struct Exchange {
 
     // Temporary fix before integration ExchangeBlocker to wait_order_finish/wait_cancel_order fallbacks #641
     timeout: Duration,
+    // Equal 0 by default in case if we cannot get exchange server time
+    server_time_latency: AtomicI64,
     pub event_recorder: Arc<EventRecorder>,
 }
 
@@ -191,6 +193,7 @@ impl Exchange {
                 buffered_canceled_orders_manager: Default::default(),
                 auto_reconnect: AtomicBool::new(false),
                 timeout,
+                server_time_latency: Default::default(),
                 event_recorder,
             }
         })
@@ -790,6 +793,10 @@ impl Exchange {
                 )
             })
             .map(|pair| pair.value().clone())
+    }
+
+    pub fn update_server_time_latency(&self, latency: i64) {
+        self.server_time_latency.store(latency, Ordering::SeqCst)
     }
 }
 

@@ -132,6 +132,11 @@ pub trait ExchangeClient: Support {
     ) -> RequestResult<Vec<OrderTrade>>;
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;
+
+    /// Only for centralized exchanges
+    /// Need for server time latency calculating
+    /// Should return server time with millis accuracy
+    async fn get_server_time(&self) -> Option<Result<i64>>;
 }
 
 pub type OrderCreatedCb =

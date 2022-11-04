@@ -46,6 +46,7 @@ use uuid::Uuid;
 
 use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use crate::services::cleanup_database::CleanupDatabaseService;
+use crate::services::exchange_time_latency::ExchangeTimeLatencyService;
 use crate::services::live_ranges::LiveRangesService;
 
 pub struct EngineBuildConfig {
@@ -277,6 +278,7 @@ fn run_services<'a, StrategySettings>(
     finish_graceful_shutdown_rx: oneshot::Receiver<ActionAfterGracefulShutdown>,
     cleanup_orders_service: Arc<CleanupOrdersService>,
     data_services: Option<DataServices>,
+    exchange_time_latency_service: Arc<ExchangeTimeLatencyService>,
 ) -> TradingEngine<StrategySettings>
 where
     StrategySettings: Clone + Debug + Deserialize<'a> + Serialize,
@@ -351,6 +353,22 @@ where
                     cleanup_orders_service.cleanup_outdated_orders().await
                 }
             }
+        },
+    );
+
+    engine_context
+        .shutdown_service
+        .register_core_service(exchange_time_latency_service.clone());
+
+    let _ = spawn_by_timer(
+        "exchange_time_latency",
+        Duration::ZERO,
+        Duration::from_secs(300),
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+        move || {
+            exchange_time_latency_service
+                .clone()
+                .update_server_time_latency()
         },
     );
 
@@ -473,6 +491,10 @@ where
         }
     };
 
+    let exchange_time_latency_service = Arc::new(ExchangeTimeLatencyService::new(
+        engine_context.exchanges.clone(),
+    ));
+
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
             engine_context.clone(),
@@ -483,6 +505,7 @@ where
             finish_graceful_shutdown_rx,
             cleanup_orders_service,
             data_services,
+            exchange_time_latency_service,
         )
     }));
 
