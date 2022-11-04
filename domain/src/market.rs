@@ -1,8 +1,6 @@
 use anyhow::Result;
-use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{impl_table_type, impl_table_type_raw};
-use regex::Regex;
 use rust_decimal::{Decimal, MathematicalOps};
 use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
@@ -43,27 +41,23 @@ impl ExchangeAccountId {
 impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
-    fn from_str(text: &str) -> std::result::Result<Self, Self::Err> {
-        let regex = Regex::new(r"(^[A-Za-z0-9\-\.]+)_(\d+$)")
-            .map_err(|err| ExchangeIdParseError(err.to_string()))?;
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        let (exchange_id, number_part) = value
+            .rsplit_once('_')
+            .ok_or_else(|| ExchangeIdParseError("not contains '_'".into()))?;
 
-        let captures = regex
-            .captures(text)
-            .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
-            .iter()
-            .collect_vec();
+        if !exchange_id
+            .chars()
+            .all(|c| c.is_ascii_alphabetic() || c.is_ascii_digit() || c == '-' || c == '.')
+        {
+            return Err(ExchangeIdParseError(format!(
+                "'ExchangeId' part can contains only 'A-Za-z0-9\\-\\.', but found '{exchange_id}'"
+            )));
+        }
 
-        let exchange_id = captures[1]
-            .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
-            .as_str();
-
-        let number = captures[2]
-            .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
-            .as_str()
+        let number = number_part
             .parse()
-            .map_err(|x| {
-                ExchangeIdParseError(format!("Can't parse exchange account number: {}", x))
-            })?;
+            .map_err(|x| ExchangeIdParseError(format!("number part is not 'u8': {x}")))?;
 
         Ok(ExchangeAccountId::new(exchange_id, number))
     }
@@ -283,7 +277,7 @@ mod tests {
             let exchange_account_id = "123".parse::<ExchangeAccountId>();
             assert_eq!(
                 exchange_account_id,
-                Err(ExchangeIdParseError("Invalid format".into()))
+                Err(ExchangeIdParseError("not contains '_'".into()))
             )
         }
 
@@ -292,20 +286,17 @@ mod tests {
             let exchange_account_id = "Binance".parse::<ExchangeAccountId>();
             assert_eq!(
                 exchange_account_id,
-                Err(ExchangeIdParseError("Invalid format".into()))
+                Err(ExchangeIdParseError("not contains '_'".into()))
             )
         }
 
         #[test]
         pub fn failed_because_invalid_number() {
             let exchange_account_id = "binance_256".parse::<ExchangeAccountId>();
-            assert_eq!(
-                exchange_account_id,
-                Err(ExchangeIdParseError(
-                    r"Can't parse exchange account number: number too large to fit in target type"
-                        .into()
-                ))
-            )
+            let expected = Err(ExchangeIdParseError(
+                "number part is not 'u8': number too large to fit in target type".into(),
+            ));
+            assert_eq!(exchange_account_id, expected)
         }
     }
 
