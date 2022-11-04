@@ -2,6 +2,7 @@
 mod futures {
     use crate::binance::binance_builder::{default_exchange_account_id, BinanceBuilder};
     use crate::binance::common::{get_binance_credentials, get_position_value_by_side};
+    use chrono::Utc;
     use core_tests::order::OrderProxy;
     use mmb_core::exchanges::general::features::{
         ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
@@ -177,8 +178,8 @@ mod futures {
         log::info!("Balance and positions: {balance_and_positions:?}");
 
         let positions = balance_and_positions.positions.expect("Missing positions");
-        let active_position =
-            ActivePosition::new(positions.first().expect("Have no active positions").clone());
+        let position = positions.first().expect("Have no active positions").clone();
+        let active_position = ActivePosition::new(position, Utc::now());
         assert_eq!(
             (
                 get_position_value_by_side(order_proxy.side, active_position.derivative.position),

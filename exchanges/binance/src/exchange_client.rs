@@ -119,7 +119,8 @@ impl ExchangeClient for Binance {
                 ExchangeBalancesAndPositions {
                     balances: self.parse_derivative_balance(&balance_response?)?,
                     positions: Some(
-                        self.get_derivative_positions(&position_response?)?
+                        self.get_active_positions(&position_response?)?
+                            .map(|position| Ok::<_, anyhow::Error>(position?.derivative))
                             .try_collect()?,
                     ),
                 }

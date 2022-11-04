@@ -570,6 +570,8 @@ pub(crate) struct PositionPayload {
     pub(crate) leverage: Decimal,
     #[serde(rename = "isOpen")]
     pub(crate) is_open: bool,
+    #[serde(deserialize_with = "deserialize_datetime")]
+    pub(crate) timestamp: DateTime,
 }
 
 fn deserialize_datetime<'de, D>(deserializer: D) -> Result<DateTime, D::Error>

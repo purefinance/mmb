@@ -680,7 +680,8 @@ impl InteractiveBrokers {
                 leverage,
             };
 
-            let mut active_position = ActivePosition::new(derivative);
+            // We don't receive `timestamp` from exchange
+            let mut active_position = ActivePosition::new(derivative, Utc::now());
             // TODO: Check if it is right
             active_position.id = ActivePositionId::from(contract.con_id.to_string().as_str());
 
