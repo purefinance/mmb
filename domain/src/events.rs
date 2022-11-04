@@ -96,29 +96,34 @@ impl TradeId {
     pub fn get_number(&self) -> u64 {
         match self {
             TradeId::Number(number) => *number,
-            TradeId::String(_) => {
-                panic!("Unable to get number from string trade id")
-            }
+            TradeId::String(_) => panic!("Unable to get number from string trade id"),
         }
     }
 
-    fn from_value(value: &Value) -> Self {
-        match value.as_u64() {
-            Some(value) => TradeId::Number(value),
-            None => TradeId::String(value.to_string().into_boxed_str()),
-        }
+    fn make_string_variant(value: &Value) -> TradeId {
+        TradeId::String(value.to_string().into_boxed_str())
     }
 }
 
 impl From<Value> for TradeId {
     fn from(value: Value) -> Self {
-        TradeId::from_value(&value)
+        match value {
+            Value::String(s) => TradeId::String(s.into_boxed_str()),
+            Value::Number(ref n) => match n.as_u64() {
+                Some(n) => TradeId::Number(n),
+                None => Self::make_string_variant(&value),
+            },
+            _ => panic!("TradeId can't be created from: {value:?}"),
+        }
     }
 }
 
 impl From<&Value> for TradeId {
     fn from(value: &Value) -> Self {
-        TradeId::from_value(value)
+        match value.as_u64() {
+            Some(value) => TradeId::Number(value),
+            None => Self::make_string_variant(value),
+        }
     }
 }
 
@@ -137,10 +142,10 @@ impl PartialEq for TradeId {
         match self {
             TradeId::Number(this) => match other {
                 TradeId::Number(other) => this == other,
-                TradeId::String(_) => panic!("{}", panic_msg),
+                TradeId::String(_) => panic!("{panic_msg}"),
             },
             TradeId::String(this) => match other {
-                TradeId::Number(_) => panic!("{}", panic_msg),
+                TradeId::Number(_) => panic!("{panic_msg}"),
                 TradeId::String(other) => this == other,
             },
         }
@@ -151,10 +156,10 @@ impl Display for TradeId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             TradeId::Number(number) => {
-                write!(f, "{}", number)
+                write!(f, "{number}")
             }
             TradeId::String(string) => {
-                write!(f, "{}", string)
+                write!(f, "{string}")
             }
         }
     }
