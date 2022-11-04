@@ -1,6 +1,7 @@
 use crate::bitmex::Bitmex;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
+use itertools::Itertools;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
@@ -97,7 +98,11 @@ impl ExchangeClient for Bitmex {
                     tokio::join!(self.request_get_balance(), self.request_get_position());
                 ExchangeBalancesAndPositions {
                     balances: self.parse_get_balance(&balance_response?)?,
-                    positions: Some(self.parse_derivative_positions(&position_response?)?),
+                    positions: Some(
+                        self.parse_active_positions(&position_response?)?
+                            .map(|position| Ok::<_, anyhow::Error>(position?.derivative))
+                            .try_collect()?,
+                    ),
                 }
             }
             false => {

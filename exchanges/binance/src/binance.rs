@@ -1,4 +1,5 @@
 use anyhow::{anyhow, bail, Context, Result};
+use chrono::Utc;
 use dashmap::DashMap;
 use function_name::named;
 use hmac::digest::generic_array;
@@ -677,15 +678,13 @@ impl Binance {
         &self,
         response: &RestResponse,
     ) -> Result<Vec<ActivePosition>> {
-        self.get_derivative_positions(response)?
-            .map(|position| Ok(ActivePosition::new(position?)))
-            .try_collect()
+        self.get_active_positions(response)?.try_collect()
     }
 
-    pub(super) fn get_derivative_positions<'a>(
+    pub(super) fn get_active_positions<'a>(
         &'a self,
         response: &RestResponse,
-    ) -> Result<impl Iterator<Item = Result<DerivativePosition>> + 'a> {
+    ) -> Result<impl Iterator<Item = Result<ActivePosition>> + 'a> {
         let binance_positions: Vec<BinancePosition> =
             serde_json::from_str(&response.content).context("Unable to parse Binance positions")?;
 
@@ -704,13 +703,16 @@ impl Binance {
                         )
                     })?;
 
-                Ok(DerivativePosition::new(
+                let derivative_position = DerivativePosition::new(
                     *currency_pair,
                     position.position_amount,
                     position.average_entry_price,
                     position.liquidation_price,
                     position.leverage,
-                ))
+                );
+
+                // We don't receive `timestamp` from exchange
+                Ok(ActivePosition::new(derivative_position, Utc::now()))
             }))
     }
 

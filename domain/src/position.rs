@@ -1,9 +1,8 @@
 use crate::market::CurrencyPair;
 use crate::order::snapshot::{Amount, ExchangeOrderId, OrderSide, Price, String16};
-use hyper::StatusCode;
+use mmb_utils::DateTime;
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -29,7 +28,6 @@ impl DerivativePosition {
         DerivativePosition {
             currency_pair,
             position,
-
             average_entry_price,
             liquidation_price,
             leverage,
@@ -110,20 +108,16 @@ impl Display for ActivePositionId {
 #[derive(Clone, Debug)]
 pub struct ActivePosition {
     pub id: ActivePositionId,
-    pub status: StatusCode,
-    pub time_stamp: u128,
-    pub pl: Amount,
     pub derivative: DerivativePosition,
+    pub timestamp: DateTime,
 }
 
 impl ActivePosition {
-    pub fn new(derivative: DerivativePosition) -> Self {
+    pub fn new(derivative: DerivativePosition, timestamp: DateTime) -> Self {
         Self {
             id: ActivePositionId::unique_id(),
-            status: StatusCode::default(),
-            time_stamp: 0,
-            pl: dec!(0),
             derivative,
+            timestamp,
         }
     }
 }

@@ -619,11 +619,7 @@ impl Bitmex {
         &self,
         response: &RestResponse,
     ) -> Result<Vec<ActivePosition>> {
-        Ok(self
-            .parse_derivative_positions(response)?
-            .into_iter()
-            .map(ActivePosition::new)
-            .collect_vec())
+        self.parse_active_positions(response)?.try_collect()
     }
 
     #[named]
@@ -697,18 +693,18 @@ impl Bitmex {
             .try_collect()
     }
 
-    pub(super) fn parse_derivative_positions(
-        &self,
+    pub(super) fn parse_active_positions<'a>(
+        &'a self,
         response: &RestResponse,
-    ) -> Result<Vec<DerivativePosition>> {
+    ) -> Result<impl Iterator<Item = Result<ActivePosition>> + 'a> {
         let bitmex_positions: Vec<PositionPayload> =
             serde_json::from_str(&response.content).context("Failed to parse positions")?;
 
         let unified_currency_pairs = self.specific_to_unified.read();
-        bitmex_positions
+        Ok(bitmex_positions
             .into_iter()
             .filter(|position| position.is_open)
-            .map(|position| {
+            .map(move |position| {
                 let currency_pair =
                     unified_currency_pairs
                         .get(&position.symbol)
@@ -718,15 +714,17 @@ impl Bitmex {
                                 position.symbol
                             )
                         })?;
-                Ok(DerivativePosition {
+
+                let derivative_position = DerivativePosition {
                     currency_pair: *currency_pair,
                     position: position.amount,
                     average_entry_price: position.average_entry_price.unwrap_or_default(),
                     liquidation_price: position.liquidation_price.unwrap_or_default(),
                     leverage: position.leverage,
-                })
-            })
-            .try_collect()
+                };
+
+                Ok(ActivePosition::new(derivative_position, position.timestamp))
+            }))
     }
 
     pub(super) fn get_order_role_by_commission_amount(commission_amount: Decimal) -> OrderRole {
