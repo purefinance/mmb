@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use log4rs::config::Deserializers;
 use log4rs::init_file;
 use serde_yaml::Value;
@@ -47,24 +47,21 @@ impl Debug for Loggers {
 enum LoggerType {
     Stdout,
     File(String),
-}
-
-impl LoggerType {
-    fn as_str(&self) -> String {
-        match self {
-            Self::Stdout => "stdout".to_owned(),
-            Self::File(name) => env::current_dir()
-                .expect("Failed to get current directory path")
-                .join(name)
-                .display()
-                .to_string(),
-        }
-    }
+    Unknown(String),
 }
 
 impl Debug for LoggerType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        match self {
+            Self::Stdout => write!(f, "stdout"),
+            Self::File(name) => {
+                let full_name = env::current_dir()
+                    .expect("Failed to get current directory path")
+                    .join(name);
+                write!(f, "{}", full_name.display())
+            }
+            Self::Unknown(kind) => write!(f, "{kind}"),
+        }
     }
 }
 
@@ -107,7 +104,9 @@ fn get_loggers() -> Result<Loggers> {
                     .context("Failed to parse log file path")?;
                     loggers.push(LoggerType::File(path));
                 }
-                _ => bail!("Unknown logger type"),
+                _ => {
+                    loggers.push(LoggerType::Unknown(kind));
+                }
             }
         }
     }
