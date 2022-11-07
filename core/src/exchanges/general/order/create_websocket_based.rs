@@ -1,11 +1,11 @@
-use mmb_domain::order::fill::EventSourceType;
+use mmb_domain::events::EventSourceType;
 use mmb_domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::WithExpect;
 use tokio::sync::oneshot;
 
 use crate::{exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult};
 use mmb_domain::order::pool::OrderRef;
+use mmb_utils::infrastructure::WithExpect;
 
 use super::create::CreateOrderResult;
 

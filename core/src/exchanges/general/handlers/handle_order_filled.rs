@@ -2,12 +2,14 @@ use crate::exchanges::general::handlers::should_ignore_event;
 use crate::{exchanges::general::exchange::Exchange, math::ConvertPercentToRate};
 use chrono::Utc;
 use function_name::named;
-use mmb_domain::events::{AllowedEventSourceType, TradeId};
+use mmb_domain::events::{
+    AllowedEventSourceType, EventSourceType, MetricsEventInfoBase, MetricsEventType, TradeId,
+};
 use mmb_domain::exchanges::commission::Percent;
 use mmb_domain::exchanges::symbol::{Round, Symbol};
 use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 use mmb_domain::order::event::OrderEventType;
-use mmb_domain::order::fill::{EventSourceType, OrderFill, OrderFillType};
+use mmb_domain::order::fill::{OrderFill, OrderFillType};
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_domain::order::snapshot::{ClientOrderFillId, OrderRole};
@@ -645,6 +647,17 @@ impl Exchange {
         }
 
         self.react_if_order_completed(order_filled_amount, order_ref);
+
+        let (order_init_time, order_finished_time) =
+            order_ref.fn_ref(|snapshot| (snapshot.props.init_time, snapshot.props.finished_time));
+        if let Some(order_finished_time) = order_finished_time {
+            let metrics_event_info = MetricsEventInfoBase::new(
+                order_init_time.timestamp_millis(),
+                order_finished_time.timestamp_millis(),
+                MetricsEventType::OrderFromCreateToFill,
+            );
+            self.save_metrics(&metrics_event_info, 0);
+        }
 
         self.event_recorder
             .save(order_ref.clone())

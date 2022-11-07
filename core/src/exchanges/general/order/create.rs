@@ -9,10 +9,9 @@ use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use function_name::named;
 use futures::pin_mut;
-use mmb_domain::events::AllowedEventSourceType;
+use mmb_domain::events::{AllowedEventSourceType, EventSourceType};
 use mmb_domain::market::{ExchangeAccountId, ExchangeErrorType};
 use mmb_domain::order::event::OrderEventType;
-use mmb_domain::order::fill::EventSourceType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{
     ClientOrderId, ExchangeOrderId, OrderCreating, OrderInfo, OrderStatus, OrderType,

@@ -8,8 +8,8 @@ use futures::executor::block_on;
 use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::traits::{
-    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
-    Support,
+    HandleMetricsCb, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
+    SendWebsocketMessageCb, Support,
 };
 use mmb_core::infrastructure::spawn_future_standalone;
 use mmb_core::settings::ExchangeSettings;
@@ -88,6 +88,10 @@ impl Support for InteractiveBrokers {
     }
 
     fn set_handle_trade_callback(&mut self, _callback: HandleTradeCb) {
+        todo!()
+    }
+
+    fn set_handle_metrics_callback(&mut self, _callback: HandleMetricsCb) {
         todo!()
     }
 

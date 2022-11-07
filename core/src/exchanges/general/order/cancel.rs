@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use futures::future::join_all;
 use itertools::Itertools;
+use mmb_domain::events::EventSourceType;
 use mmb_domain::market::ExchangeErrorType;
-use mmb_domain::order::fill::EventSourceType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::Amount;
 use mmb_domain::order::snapshot::{

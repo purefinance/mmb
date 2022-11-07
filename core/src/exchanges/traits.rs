@@ -15,7 +15,7 @@ use crate::settings::ExchangeSettings;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use mmb_domain::events::ExchangeBalancesAndPositions;
+use mmb_domain::events::{EventSourceType, ExchangeBalancesAndPositions, MetricsEventInfo};
 use mmb_domain::events::{ExchangeEvent, Trade};
 use mmb_domain::exchanges::symbol::{BeforeAfter, Symbol};
 use mmb_domain::market::CurrencyId;
@@ -23,7 +23,6 @@ use mmb_domain::market::{
     CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId,
     SpecificCurrencyPair,
 };
-use mmb_domain::order::fill::EventSourceType;
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::Price;
 use mmb_domain::order::snapshot::{
@@ -151,6 +150,8 @@ pub type HandleOrderFilledCb = Box<dyn Fn(FillEvent) + Send + Sync>;
 
 pub type SendWebsocketMessageCb = Box<dyn Fn(WebSocketRole, String) -> Result<()> + Send + Sync>;
 
+pub type HandleMetricsCb = Box<dyn Fn(MetricsEventInfo) + Send + Sync>;
+
 #[async_trait]
 pub trait Support: Send + Sync {
     /// Needed to call the `downcast_ref` method
@@ -171,6 +172,8 @@ pub trait Support: Send + Sync {
     fn set_handle_order_filled_callback(&mut self, callback: HandleOrderFilledCb);
 
     fn set_handle_trade_callback(&mut self, callback: HandleTradeCb);
+
+    fn set_handle_metrics_callback(&mut self, callback: HandleMetricsCb);
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);
 

@@ -1,6 +1,7 @@
+use crate::events::EventSourceType;
 use crate::market::CurrencyPair;
 use crate::market::{ExchangeAccountId, ExchangeErrorType, MarketAccountId, MarketId};
-use crate::order::fill::{EventSourceType, OrderFill};
+use crate::order::fill::OrderFill;
 use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;

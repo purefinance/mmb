@@ -14,13 +14,13 @@ use mmb_core::exchanges::general::handlers::handle_order_filled::{
     FillAmount, FillEvent, SpecialOrderData,
 };
 use mmb_core::exchanges::traits::{
-    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
-    Support,
+    HandleMetricsCb, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
+    SendWebsocketMessageCb, Support,
 };
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{ExchangeEvent, Trade};
+use mmb_domain::events::{EventSourceType, ExchangeEvent, Trade};
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, SpecificCurrencyPair};
-use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::fill::OrderFillType;
 use mmb_domain::order::snapshot::{Amount, OrderSide, Price};
 use mmb_domain::order_book::event::{EventType, OrderBookEvent};
 use mmb_domain::order_book::order_book_data::OrderBookData;
@@ -116,6 +116,10 @@ impl Support for Bitmex {
 
     fn set_handle_trade_callback(&mut self, callback: HandleTradeCb) {
         self.handle_trade_callback = callback;
+    }
+
+    fn set_handle_metrics_callback(&mut self, callback: HandleMetricsCb) {
+        self.handle_metrics_callback = callback;
     }
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {

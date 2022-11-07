@@ -1,7 +1,7 @@
-use mmb_domain::events::TradeId;
+use mmb_domain::events::{EventSourceType, TradeId};
 use mmb_domain::market::CurrencyCode;
 use mmb_domain::market::ExchangeAccountId;
-use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::fill::OrderFillType;
 use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_domain::order::snapshot::{ClientOrderId, ExchangeOrderId, OrderRole};
 use mmb_utils::DateTime;

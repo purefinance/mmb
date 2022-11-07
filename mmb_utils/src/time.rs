@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::sync::atomic::AtomicU64;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -8,11 +9,9 @@ pub fn u64_to_date_time(src: u64) -> DateTime {
     (UNIX_EPOCH + Duration::from_millis(src)).into()
 }
 
-pub fn get_current_milliseconds() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Unable to get time since unix epoch started")
-        .as_millis()
+/// i64 is enough for max UNIX EPOCH time
+pub fn get_current_milliseconds() -> i64 {
+    Utc::now().timestamp_millis()
 }
 
 /// Function should be used for initialization of unique IDs based on incrementing AtomicU64 counter.

@@ -35,7 +35,7 @@ use mmb_core::exchanges::rest_client::{
     ErrorHandler, ErrorHandlerData, RequestType, RestClient, RestHeaders, RestResponse, UriBuilder,
 };
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
-use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeError};
+use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeError, HandleMetricsCb};
 use mmb_core::exchanges::traits::{
     ExchangeClientBuilderResult, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb,
     OrderCreatedCb, Support,
@@ -46,12 +46,12 @@ use mmb_core::exchanges::{
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::AllowedEventSourceType;
+use mmb_domain::events::{AllowedEventSourceType, EventSourceType};
 use mmb_domain::events::{ExchangeBalance, ExchangeEvent, TradeId};
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId};
 use mmb_domain::market::{ExchangeAccountId, SpecificCurrencyPair};
-use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::fill::OrderFillType;
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::*;
 use mmb_domain::order::snapshot::{Amount, Price};
@@ -146,6 +146,7 @@ pub struct Binance {
     pub order_cancelled_callback: OrderCancelledCb,
     pub handle_order_filled_callback: HandleOrderFilledCb,
     pub handle_trade_callback: HandleTradeCb,
+    pub(super) handle_metrics_callback: HandleMetricsCb,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
@@ -218,6 +219,7 @@ impl Binance {
             order_cancelled_callback: Box::new(|_, _, _| {}),
             handle_order_filled_callback: Box::new(|_| {}),
             handle_trade_callback: Box::new(|_, _| {}),
+            handle_metrics_callback: Box::new(|_| {}),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
