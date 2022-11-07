@@ -59,13 +59,13 @@ impl ExchangeTimeLatencyService {
     }
 
     // async fn get_local_time_offset(&self, exchange: Arc<Exchange>) -> Result<i64> {
-    //     let local_send_time = Utc::now().timestamp_millis();
+    //     let local_send_time = get_current_milliseconds();
     //     let server_time = exchange
     //         .exchange_client
     //         .get_server_time()
     //         .await
     //         .ok_or_else(|| anyhow!("Exchange doesn't support getting time"))??;
-    //     let local_receive_time = Utc::now().timestamp_millis();
+    //     let local_receive_time = get_current_milliseconds();
     //
     //     let min = local_send_time - server_time;
     //     let max = local_receive_time - server_time;

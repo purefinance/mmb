@@ -136,6 +136,10 @@ impl Support for Serum {
             actual_status: OrderStatus::Creating,
         }))
     }
+
+    fn set_handle_metrics_callback(&mut self, _callback: HandleMetricsCb) {
+        // Metrics not supported cause we can't get both server time and server transaction times
+    }
 }
 
 impl Serum {

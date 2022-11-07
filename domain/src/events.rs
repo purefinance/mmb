@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 
 use crate::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 use crate::order::event::OrderEvent;
-use crate::order::snapshot::{Amount, OrderSide, Price};
+use crate::order::snapshot::{Amount, OrderSide, OrderStatus, Price};
 use crate::order_book::event::OrderBookEvent;
 use crate::position::DerivativePosition;
 
@@ -197,6 +197,8 @@ pub struct Trade {
     pub price: Price,
     pub quantity: Amount,
     pub side: OrderSide,
+    /// Transaction time received from exchange
+    /// If we can't get it we should write trade event bot local time  
     pub transaction_time: DateTime,
 }
 
@@ -239,4 +241,94 @@ pub enum AllowedEventSourceType {
     All,
     FallbackOnly,
     NonFallback,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
+pub enum EventSourceType {
+    RestFallback = 1,
+    Rest = 2,
+    WebSocket = 3,
+    Rpc = 4,
+}
+
+impl_event!(MetricsEvent, "metrics_events");
+
+/// Unix timestamp in milliseconds
+pub type MetricsTime = i64;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MetricsEvent {
+    latency: MetricsTime,
+    /// Corresponds to end time of measurement (`MetricsEventInfoBase::end_time`)
+    measure_time: MetricsTime,
+    event_type: MetricsEventType,
+}
+
+impl MetricsEvent {
+    pub fn new(info: &MetricsEventInfoBase, local_time_offset: MetricsTime) -> Self {
+        Self {
+            latency: info.latency(local_time_offset),
+            measure_time: info.end_time,
+            event_type: info.event_type,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Serialize)]
+pub enum MetricsEventType {
+    TradeEvent,
+    OrderBookEvent,
+    MlPrediction,
+    TradeToMl,
+    OrderFromCreateToFill,
+    OrderLifeCycle(OrderStatus),
+}
+
+#[derive(Debug)]
+pub struct MetricsEventInfoBase {
+    start_time: MetricsTime,
+    end_time: MetricsTime,
+    event_type: MetricsEventType,
+}
+
+impl MetricsEventInfoBase {
+    pub fn new(
+        start_time: MetricsTime,
+        end_time: MetricsTime,
+        event_type: MetricsEventType,
+    ) -> Self {
+        Self {
+            start_time,
+            end_time,
+            event_type,
+        }
+    }
+
+    fn latency(&self, local_time_offset: MetricsTime) -> MetricsTime {
+        self.end_time + local_time_offset - self.start_time
+    }
+
+    pub fn event_type(&self) -> MetricsEventType {
+        self.event_type
+    }
+}
+
+#[derive(Debug)]
+pub struct MetricsEventInfo {
+    pub base: MetricsEventInfoBase,
+    _source_type: EventSourceType,
+}
+
+impl MetricsEventInfo {
+    pub fn new(
+        start_time: MetricsTime,
+        end_time: MetricsTime,
+        source_type: EventSourceType,
+        event_type: MetricsEventType,
+    ) -> Self {
+        Self {
+            base: MetricsEventInfoBase::new(start_time, end_time, event_type),
+            _source_type: source_type,
+        }
+    }
 }

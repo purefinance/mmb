@@ -23,8 +23,9 @@ use mmb_core::exchanges::rest_client::{
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
-    ExchangeClientBuilder, ExchangeClientBuilderResult, ExchangeError, HandleOrderFilledCb,
-    HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb, Support,
+    ExchangeClientBuilder, ExchangeClientBuilderResult, ExchangeError, HandleMetricsCb,
+    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
+    Support,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
@@ -179,6 +180,7 @@ pub struct Bitmex {
     pub(crate) order_cancelled_callback: OrderCancelledCb,
     pub(crate) handle_order_filled_callback: HandleOrderFilledCb,
     pub(crate) handle_trade_callback: HandleTradeCb,
+    pub(super) handle_metrics_callback: HandleMetricsCb,
     pub(crate) websocket_message_callback: SendWebsocketMessageCb,
     pub(super) order_book_ids: Mutex<HashMap<(SpecificCurrencyPair, u64), Price>>,
     currency_balance_rates: Mutex<HashMap<CurrencyCode, Decimal>>,
@@ -211,6 +213,7 @@ impl Bitmex {
             order_cancelled_callback: Box::new(|_, _, _| {}),
             handle_order_filled_callback: Box::new(|_| {}),
             handle_trade_callback: Box::new(|_, _| {}),
+            handle_metrics_callback: Box::new(|_| {}),
             websocket_message_callback: Box::new(|_, _| Ok(())),
             order_book_ids: Default::default(),
             currency_balance_rates: Default::default(),

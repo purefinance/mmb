@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
+use mmb_domain::events::EventSourceType;
 use mmb_domain::market::CurrencyCode;
 use mmb_utils::nothing_to_do;
 use tokio::sync::{broadcast, oneshot};
@@ -20,7 +21,7 @@ use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::infrastructure::spawn_future_timed;
 use mmb_domain::exchanges::symbol::Symbol;
 use mmb_domain::market::ExchangeErrorType;
-use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::fill::OrderFillType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{OrderExecutionType, OrderInfo, OrderStatus, OrderType};
 use mmb_utils::time::ToStdExpected;

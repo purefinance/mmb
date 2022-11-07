@@ -25,7 +25,8 @@ use futures::future::join_all;
 use itertools::Itertools;
 use mmb_database::impl_event;
 use mmb_domain::events::{
-    BalanceUpdateEvent, ExchangeBalancesAndPositions, ExchangeEvent, LiquidationPriceEvent, Trade,
+    BalanceUpdateEvent, ExchangeBalancesAndPositions, ExchangeEvent, LiquidationPriceEvent,
+    MetricsEvent, MetricsEventInfo, MetricsEventInfoBase, MetricsEventType, MetricsTime, Trade,
 };
 use mmb_domain::exchanges::commission::Commission;
 use mmb_domain::exchanges::symbol::Symbol;
@@ -41,7 +42,7 @@ use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
 use mmb_domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::SpawnFutureFlags;
+use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::send_expected::SendExpectedByRef;
 use mmb_utils::{nothing_to_do, DateTime};
 use parking_lot::Mutex;
@@ -239,17 +240,29 @@ impl Exchange {
             }
         }));
 
-        exchange_client.set_send_websocket_message_callback(Box::new(move |role, message| {
-            let exchange = match exchange_weak.upgrade() {
-                None => {
-                    // some race during shutdown
-                    log::info!("Unable to upgrade weak reference to Exchange instance");
-                    return Err(ConnectivityError::NotConnected.into());
-                }
-                Some(exchange) => exchange,
-            };
-            exchange.forward_websocket_message(role, message)
+        exchange_client.set_send_websocket_message_callback(Box::new({
+            let exchange_weak = exchange_weak.clone();
+            move |role, message| {
+                let exchange = match exchange_weak.upgrade() {
+                    None => {
+                        // some race during shutdown
+                        log::info!("Unable to upgrade weak reference to Exchange instance");
+                        return Err(ConnectivityError::NotConnected.into());
+                    }
+                    Some(exchange) => exchange,
+                };
+                exchange.forward_websocket_message(role, message)
+            }
         }));
+
+        exchange_client.set_handle_metrics_callback(Box::new(move |event_info| match exchange_weak
+            .upgrade()
+        {
+            Some(exchange) => {
+                exchange.handle_metrics(&event_info);
+            }
+            None => log::info!("Unable to upgrade weak reference to Exchange instance"),
+        }))
     }
 
     fn on_websocket_message(&self, msg: &str) {
@@ -797,6 +810,35 @@ impl Exchange {
 
     pub fn update_server_time_latency(&self, latency: i64) {
         self.server_time_latency.store(latency, Ordering::SeqCst)
+    }
+
+    fn handle_metrics(&self, event_info: &MetricsEventInfo) {
+        let local_time_offset = match event_info.base.event_type() {
+            MetricsEventType::TradeEvent | MetricsEventType::OrderBookEvent => {
+                self.server_time_latency.load(Ordering::SeqCst)
+            }
+            MetricsEventType::MlPrediction
+            | MetricsEventType::OrderFromCreateToFill
+            | MetricsEventType::TradeToMl => 0,
+            MetricsEventType::OrderLifeCycle(_) => unimplemented!(),
+        };
+
+        self.save_metrics(&event_info.base, local_time_offset);
+    }
+
+    pub(super) fn save_metrics(
+        &self,
+        metrics_event_info: &MetricsEventInfoBase,
+        local_time_offset: MetricsTime,
+    ) {
+        let metrics_event = MetricsEvent::new(metrics_event_info, local_time_offset);
+
+        self.event_recorder.save(metrics_event).with_expect(|| {
+            format!(
+                "Failure save metrics event {:?}",
+                metrics_event_info.event_type()
+            )
+        });
     }
 }
 

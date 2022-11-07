@@ -1,5 +1,4 @@
-use mmb_domain::events::AllowedEventSourceType;
-use mmb_domain::order::fill::EventSourceType;
+use mmb_domain::events::{AllowedEventSourceType, EventSourceType};
 
 pub mod handle_cancel_order_failed;
 pub mod handle_cancel_order_succeeded;

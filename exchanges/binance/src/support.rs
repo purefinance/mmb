@@ -18,19 +18,22 @@ use super::binance::Binance;
 use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::send_event;
 use mmb_core::exchanges::general::exchange::Exchange;
-use mmb_core::exchanges::traits::Support;
+use mmb_core::exchanges::traits::{HandleMetricsCb, Support};
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
 };
 use mmb_core::infrastructure::spawn_by_timer;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{ExchangeEvent, Trade, TradeId};
+use mmb_domain::events::{
+    EventSourceType, ExchangeEvent, MetricsEventInfo, MetricsEventType, Trade, TradeId,
+};
 use mmb_domain::market::{CurrencyCode, CurrencyPair};
 use mmb_domain::market::{CurrencyId, SpecificCurrencyPair};
 use mmb_domain::order::snapshot::SortedOrderData;
 use mmb_domain::order::snapshot::*;
 use mmb_domain::order_book::event::{EventType, OrderBookEvent};
 use mmb_domain::order_book::order_book_data::OrderBookData;
+use mmb_utils::time::get_current_milliseconds;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BinanceOrderInfo {
@@ -207,6 +210,10 @@ impl Support for Binance {
         self.handle_trade_callback = callback;
     }
 
+    fn set_handle_metrics_callback(&mut self, callback: HandleMetricsCb) {
+        self.handle_metrics_callback = callback;
+    }
+
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
         *self.traded_specific_currencies.lock() = currencies;
     }
@@ -297,6 +304,13 @@ impl Binance {
             .as_i64()
             .context("Unable to get i64 from 'T' field json data")?;
 
+        (self.handle_metrics_callback)(MetricsEventInfo::new(
+            datetime,
+            get_current_milliseconds(),
+            EventSourceType::WebSocket,
+            MetricsEventType::TradeEvent,
+        ));
+
         (self.handle_trade_callback)(
             currency_pair,
             Trade {
@@ -334,6 +348,17 @@ impl Binance {
                 (last_update_id, raw_asks, raw_bids)
             }
         };
+
+        let datetime = data["T"]
+            .as_i64()
+            .context("Unable to get i64 from 'T' field json data")?;
+
+        (self.handle_metrics_callback)(MetricsEventInfo::new(
+            datetime,
+            get_current_milliseconds(),
+            EventSourceType::WebSocket,
+            MetricsEventType::OrderBookEvent,
+        ));
 
         let asks = get_order_book_side(raw_asks)?;
         let bids = get_order_book_side(raw_bids)?;

@@ -1,4 +1,4 @@
-use crate::events::TradeId;
+use crate::events::{EventSourceType, TradeId};
 use crate::market::CurrencyCode;
 use crate::order::snapshot::{OrderFillRole, OrderSide};
 use mmb_utils::DateTime;
@@ -21,14 +21,6 @@ impl OrderFillType {
         use OrderFillType::*;
         matches!(self, Liquidation | ClosePosition)
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
-pub enum EventSourceType {
-    RestFallback = 1,
-    Rest = 2,
-    WebSocket = 3,
-    Rpc = 4,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

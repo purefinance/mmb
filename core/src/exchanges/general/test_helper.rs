@@ -50,7 +50,9 @@ use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::exchanges::timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory;
-use crate::exchanges::traits::{ExchangeError, HandleOrderFilledCb, SendWebsocketMessageCb};
+use crate::exchanges::traits::{
+    ExchangeError, HandleMetricsCb, HandleOrderFilledCb, SendWebsocketMessageCb,
+};
 use mmb_utils::{cancellation_token::CancellationToken, hashmap, DateTime};
 
 use super::order::get_order_trades::OrderTrade;
@@ -149,6 +151,8 @@ impl Support for TestClient {
     fn set_handle_order_filled_callback(&mut self, _callback: HandleOrderFilledCb) {}
 
     fn set_handle_trade_callback(&mut self, _callback: HandleTradeCb) {}
+
+    fn set_handle_metrics_callback(&mut self, _callback: HandleMetricsCb) {}
 
     fn set_traded_specific_currencies(&self, _currencies: Vec<SpecificCurrencyPair>) {}
 

@@ -24,10 +24,10 @@ use mmb_core::exchanges::general::handlers::handle_order_filled::{
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::traits::ExchangeError;
-use mmb_domain::events::{ExchangeBalance, TradeId};
+use mmb_domain::events::{EventSourceType, ExchangeBalance, TradeId};
 use mmb_domain::exchanges::symbol::Symbol;
 use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeErrorType};
-use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::fill::OrderFillType;
 use mmb_domain::order::snapshot::{
     ClientOrderId, ExchangeOrderId, OrderInfo, OrderRole, OrderSide as MmbOrderSide,
     OrderStatus as MmbOrderStatus,
