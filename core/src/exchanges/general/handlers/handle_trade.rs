@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use mmb_domain::events::{ExchangeEvent, Trade, TradesEvent};
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::MarketId;
@@ -11,11 +10,10 @@ impl Exchange {
             return;
         }
 
-        let trades = vec![trade];
         let mut trades_event = TradesEvent {
             exchange_account_id: self.exchange_account_id,
             currency_pair,
-            trades,
+            trades: vec![trade],
             receipt_time: timeout_manager::now(),
         };
 
@@ -34,18 +32,11 @@ impl Exchange {
 
         if self.exchange_client.get_settings().request_trades {
             let should_add_event = if let Some(last_trade) = self.last_trades.get_mut(&market_id) {
-                let trade_items = trades_event
-                    .trades
-                    .into_iter()
-                    .filter(
-                        |item| match self.features.trade_option.supports_trade_incremented_id {
-                            true => item.trade_id.get_number() > last_trade.trade_id.get_number(),
-                            false => item.transaction_time > last_trade.transaction_time,
-                        },
-                    )
-                    .collect_vec();
-
-                trades_event.trades = trade_items;
+                let trades = &mut trades_event.trades;
+                match self.features.trade_option.supports_trade_incremented_id {
+                    true => trades.retain(|t| t.trade_id.number() > last_trade.trade_id.number()),
+                    false => trades.retain(|t| t.transaction_time > last_trade.transaction_time),
+                };
 
                 true
             } else {

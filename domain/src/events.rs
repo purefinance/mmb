@@ -93,7 +93,7 @@ pub enum TradeId {
 }
 
 impl TradeId {
-    pub fn get_number(&self) -> u64 {
+    pub fn number(&self) -> u64 {
         match self {
             TradeId::Number(number) => *number,
             TradeId::String(_) => panic!("Unable to get number from string trade id"),
