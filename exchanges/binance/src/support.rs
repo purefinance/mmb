@@ -277,8 +277,7 @@ impl Binance {
                 format!("There are no last_trade_id for given currency_pair {currency_pair}")
             });
 
-        if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
-        {
+        if self.is_reducing_market_data && trade_id_from_lasts.number() >= trade_id.number() {
             log::info!("Current last_trade_id for currency_pair {currency_pair} is {} >= trade_id {trade_id}", *trade_id_from_lasts);
 
             return Ok(());
