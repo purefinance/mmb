@@ -417,7 +417,7 @@ impl Bitmex {
 
                         let fill_event = FillEvent {
                             source_type: EventSourceType::WebSocket,
-                            trade_id: Some(data.trade_id.into()),
+                            trade_id: Some(data.trade_id),
                             client_order_id,
                             exchange_order_id: data.exchange_order_id,
                             fill_price: data.fill_price,

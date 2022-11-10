@@ -62,6 +62,7 @@ impl SubscriptionManager {
             .map(|messages, current_actor, _| {
                 for message in messages {
                     match message {
+                        #[allow(clippy::single_match)]
                         Ok(message) => match message {
                             Some(liquidity_subscription) => {
                                 let _ = current_actor

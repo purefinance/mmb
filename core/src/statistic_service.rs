@@ -138,7 +138,7 @@ impl StatisticServiceState {
     }
 
     pub(crate) fn register_skipped_event(&self) {
-        (*self.disposition_executor_stats.lock()).skipped_events_amount += 1;
+        self.disposition_executor_stats.lock().skipped_events_amount += 1;
     }
 }
 

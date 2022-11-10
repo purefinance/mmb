@@ -129,6 +129,7 @@ impl InteractiveBrokers {
     }
 
     async fn handle(handlers: &Handlers, msg: ServerRspMsg) -> anyhow::Result<()> {
+        #[allow(clippy::single_match)]
         match &msg {
             ServerRspMsg::OpenOrder { order_state, .. } => {
                 if IbOrderStatus::Filled == IbOrderStatus::from_str(&order_state.status)? {

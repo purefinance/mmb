@@ -579,7 +579,7 @@ impl Binance {
 
         let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
         let mut builder = UriBuilder::from_path(path);
-        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("symbol", specific_currency_pair);
         builder.add_kv("origClientOrderId", &client_order_id);
         self.add_authentification(&mut builder);
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
@@ -614,7 +614,7 @@ impl Binance {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
         let mut builder = UriBuilder::from_path(self.get_open_order_path());
-        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("symbol", specific_currency_pair);
         self.add_authentification(&mut builder);
 
         self.request_open_orders_by_http_header(builder).await
@@ -779,7 +779,7 @@ impl Binance {
 
         let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
         let mut builder = UriBuilder::from_path(path);
-        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("symbol", specific_currency_pair);
         builder.add_kv("orderId", &order.exchange_order_id);
         self.add_authentification(&mut builder);
 
@@ -807,7 +807,7 @@ impl Binance {
                 last_date_time_value.timestamp_millis().to_string(),
             );
         }
-        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("symbol", specific_currency_pair);
         self.add_authentification(&mut builder);
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
@@ -893,11 +893,11 @@ impl Binance {
         builder.add_kv("symbol", specific_currency_pair);
         builder.add_kv("side", get_server_order_side(header.side));
         builder.add_kv("type", get_server_order_type(&header, is_margin_trading));
-        builder.add_kv("quantity", &header.amount);
+        builder.add_kv("quantity", header.amount);
         builder.add_kv("newClientOrderId", &header.client_order_id);
 
         if header.order_type != OrderType::Market {
-            builder.add_kv("price", &price);
+            builder.add_kv("price", price);
         }
 
         if header.order_type != OrderType::Market

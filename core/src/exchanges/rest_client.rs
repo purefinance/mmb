@@ -512,7 +512,7 @@ mod tests {
         let mut builder = UriBuilder::from_path(path);
         builder.add_kv("key", "value");
         builder.add_kv("key2", 32);
-        builder.add_kv("key3", &dec!(42));
+        builder.add_kv("key3", dec!(42));
         let query = builder.query();
         assert_eq!(query, b"key=value&key2=32&key3=42");
 
@@ -531,7 +531,7 @@ mod tests {
         let mut builder = UriBuilder::from_path(path);
         builder.add_kv("key", "value");
         builder.add_kv("key2", 32);
-        builder.add_kv("key3", &dec!(42));
+        builder.add_kv("key3", dec!(42));
         let query = builder.query();
         assert_eq!(query, b"key=value&key2=32&key3=42");
 

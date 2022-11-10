@@ -51,7 +51,7 @@ impl ExchangeClient for Binance {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
         let mut builder = UriBuilder::from_path("/api/v3/openOrders");
-        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("symbol", specific_currency_pair);
         self.add_authentification(&mut builder);
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
