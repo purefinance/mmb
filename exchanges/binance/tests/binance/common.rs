@@ -122,7 +122,7 @@ pub(crate) async fn get_prices(
         true => "/fapi/v1/depth",
         false => "/api/v3/depth",
     });
-    builder.add_kv("symbol", &currency_pair);
+    builder.add_kv("symbol", currency_pair);
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
     let data = send_request(
@@ -165,7 +165,7 @@ pub(crate) async fn get_min_amount(
         true => "/fapi/v1/exchangeInfo",
         false => "/api/v3/exchangeInfo",
     });
-    builder.add_kv("symbol", &currency_pair);
+    builder.add_kv("symbol", currency_pair);
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
     let data = send_request(

@@ -237,7 +237,7 @@ mod tests {
             "does_not_matter".into(),
             CurrencyPair::from_codes("base".into(), "quote".into()),
             event::EventType::Snapshot,
-            order_book_data.clone(),
+            order_book_data,
         );
 
         // Perform update
@@ -275,7 +275,7 @@ mod tests {
             "does_not_matter".into(),
             CurrencyPair::from_codes("base".into(), "quote".into()),
             event::EventType::Snapshot,
-            order_book_data_snapshot.clone(),
+            order_book_data_snapshot,
         );
 
         snapshot_service
@@ -291,7 +291,7 @@ mod tests {
             "does_not_matter".into(),
             CurrencyPair::from_codes("base".into(), "quote".into()),
             event::EventType::Update,
-            order_book_data_update.clone(),
+            order_book_data_update,
         );
 
         // Perform update

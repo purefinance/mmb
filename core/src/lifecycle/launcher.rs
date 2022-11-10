@@ -418,7 +418,7 @@ pub(crate) fn unwrap_or_handle_panic<T>(
         let error_msg = match err.downcast::<String>() {
             Ok(msg) => ErrorMessage::String(*msg),
             Err(err) => match err.downcast::<&'static str>() {
-                Ok(msg) => ErrorMessage::ConstStr(*msg),
+                Ok(msg) => ErrorMessage::ConstStr(&msg),
                 Err(_) => ErrorMessage::None,
             },
         };
