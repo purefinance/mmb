@@ -26,7 +26,7 @@ use mmb_domain::market::{
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::Price;
 use mmb_domain::order::snapshot::{
-    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
+    ClientOrderId, ExchangeOrderId, OrderInfo, OrderInfoExtensionData, OrderSide,
 };
 use mmb_domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
@@ -90,7 +90,13 @@ impl From<anyhow::Error> for ExchangeError {
 pub trait ExchangeClient: Support {
     async fn create_order(&self, order: &OrderRef) -> CreateOrderResult;
 
-    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult;
+    /// There is an `ExchangeOrderId` as additional argument cause it's an `Option` in `OrderRef`
+    /// And there is no point to check if it's `Some(value)` cause it already must be checked in core
+    async fn cancel_order(
+        &self,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
+    ) -> CancelOrderResult;
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()>;
 

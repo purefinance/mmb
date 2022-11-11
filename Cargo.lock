@@ -844,6 +844,7 @@ dependencies = [
  "mmb_core",
  "mmb_domain",
  "mmb_utils",
+ "parking_lot 0.12.1",
  "rust_decimal",
  "rust_decimal_macros",
  "tokio",

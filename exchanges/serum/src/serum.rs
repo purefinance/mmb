@@ -69,8 +69,8 @@ use mmb_domain::market::{
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
-    OrderStatus, OrderType,
+    ClientOrderId, ExchangeOrderId, OrderInfo, OrderInfoExtensionData, OrderSide, OrderStatus,
+    OrderType,
 };
 use mmb_utils::infrastructure::WithExpect;
 
@@ -97,9 +97,10 @@ trait DowncastToSerumExtensionData {
     fn downcast_to_serum_extension_data(&self) -> &SerumExtensionData;
 }
 
-impl DowncastToSerumExtensionData for OrderCancelling {
+impl DowncastToSerumExtensionData for OrderRef {
     fn downcast_to_serum_extension_data(&self) -> &SerumExtensionData {
-        downcast_to_serum_extension_data(self.extension_data.as_deref())
+        let extension_data = self.fn_ref(|snapshot| snapshot.extension_data);
+        downcast_to_serum_extension_data(extension_data.as_deref())
     }
 }
 
@@ -698,11 +699,11 @@ impl Serum {
 
     pub(super) async fn cancel_order_core(
         &self,
-        order: &OrderCancelling,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
     ) -> Result<(), ExchangeError> {
-        let market_data = self.get_market_data(order.header.currency_pair)?;
+        let market_data = self.get_market_data(order.currency_pair())?;
         let metadata = market_data.metadata;
-        let exchange_order_id = order.exchange_order_id.clone();
         let extension_data = order.downcast_to_serum_extension_data();
 
         // Panic here cause there is an impossible situation:
@@ -719,7 +720,7 @@ impl Serum {
             &open_orders_account,
             &self.payer.pubkey(),
             &metadata.event_queue_address,
-            order.header.side.to_serum_side(),
+            order.side().to_serum_side(),
             exchange_order_id.to_u128(),
         )
         .map_err(|err| {

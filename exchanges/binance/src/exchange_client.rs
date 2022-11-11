@@ -33,15 +33,15 @@ impl ExchangeClient for Binance {
         }
     }
 
-    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
-        let order_header = order.header.clone();
-
-        match self.request_cancel_order(order).await {
-            Ok(_) => CancelOrderResult::succeed(
-                order_header.client_order_id.clone(),
-                EventSourceType::Rest,
-                None,
-            ),
+    async fn cancel_order(
+        &self,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
+    ) -> CancelOrderResult {
+        match self.request_cancel_order(order, exchange_order_id).await {
+            Ok(_) => {
+                CancelOrderResult::succeed(order.client_order_id(), EventSourceType::Rest, None)
+            }
             Err(err) => CancelOrderResult::failed(err, EventSourceType::Rest),
         }
     }

@@ -1,13 +1,11 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use futures::future::join_all;
 use itertools::Itertools;
 use mmb_domain::events::EventSourceType;
 use mmb_domain::market::ExchangeErrorType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::Amount;
-use mmb_domain::order::snapshot::{
-    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderStatus,
-};
+use mmb_domain::order::snapshot::{ClientOrderId, ExchangeOrderId, OrderInfo, OrderStatus};
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
@@ -76,11 +74,7 @@ impl Exchange {
                     self.exchange_account_id
                 );
 
-                let order_to_cancel = order
-                    .to_order_cancelling()
-                    .ok_or_else(|| anyhow!("Unable to convert order to order_to_cancel"))?;
-                let order_cancellation_outcome =
-                    self.cancel_order(order_to_cancel, cancellation_token).await;
+                let order_cancellation_outcome = self.cancel_order(order, cancellation_token).await;
 
                 log::info!(
                     "Submitted order cancellation {client_order_id} {exchange_order_id:?} on {}: {order_cancellation_outcome:?}", self.exchange_account_id);
@@ -92,45 +86,53 @@ impl Exchange {
 
     pub async fn cancel_order(
         &self,
-        order: OrderCancelling,
+        order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Option<CancelOrderResult> {
-        let exchange_order_id = order.exchange_order_id.clone();
-        let order_cancellation_outcome = self.cancel_order_core(order, cancellation_token).await;
+        match order.exchange_order_id() {
+            Some(exchange_order_id) => {
+                let order_cancellation_outcome = self
+                    .cancel_order_core(order, &exchange_order_id, cancellation_token)
+                    .await;
 
-        // Option is returning when cancel_order_core is stopped by CancellationToken
-        // So appropriate Handler was already called in a fallback
-        if let Some(ref cancel_outcome) = order_cancellation_outcome {
-            match &cancel_outcome.outcome {
-                RequestResult::Success(client_order_id) => self.handle_cancel_order_succeeded(
-                    Some(client_order_id),
-                    &exchange_order_id,
-                    cancel_outcome.filled_amount,
-                    cancel_outcome.source_type,
-                ),
-                RequestResult::Error(error) => {
-                    if error.error_type != ExchangeErrorType::ParsingError {
-                        self.handle_cancel_order_failed(
-                            &exchange_order_id,
-                            error.clone(),
-                            cancel_outcome.source_type,
-                        );
-                    }
+                // Option is returning when cancel_order_core is stopped by CancellationToken
+                // So appropriate Handler was already called in a fallback
+                if let Some(ref cancel_outcome) = order_cancellation_outcome {
+                    match &cancel_outcome.outcome {
+                        RequestResult::Success(client_order_id) => self
+                            .handle_cancel_order_succeeded(
+                                Some(client_order_id),
+                                &exchange_order_id,
+                                cancel_outcome.filled_amount,
+                                cancel_outcome.source_type,
+                            ),
+                        RequestResult::Error(error) => {
+                            if error.error_type != ExchangeErrorType::ParsingError {
+                                self.handle_cancel_order_failed(
+                                    &exchange_order_id,
+                                    error.clone(),
+                                    cancel_outcome.source_type,
+                                );
+                            }
+                        }
+                    };
                 }
-            };
-        }
 
-        order_cancellation_outcome
+                order_cancellation_outcome
+            }
+            None => {
+                log::warn!("Missing exchange_order_id in cancelling order");
+                None
+            }
+        }
     }
 
     async fn cancel_order_core(
         &self,
-        // TODO Here has to be common Order (or OrderRef) cause it's more natural way:
-        // When user want to cancel_order he already has that order data somewhere
-        order: OrderCancelling,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
         cancellation_token: CancellationToken,
     ) -> Option<CancelOrderResult> {
-        let exchange_order_id = order.exchange_order_id.clone();
         let (tx, mut websocket_event_receiver) = oneshot::channel();
 
         // TODO insert is not analog of C# GetOrAd!
@@ -138,7 +140,7 @@ impl Exchange {
         self.order_cancellation_events
             .insert(exchange_order_id.clone(), (tx, None));
 
-        let cancel_order_future = self.exchange_client.cancel_order(order);
+        let cancel_order_future = self.exchange_client.cancel_order(order, exchange_order_id);
 
         tokio::select! {
             cancel_order_result = cancel_order_future => {

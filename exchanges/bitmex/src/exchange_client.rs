@@ -11,7 +11,7 @@ use mmb_domain::events::{EventSourceType, ExchangeBalancesAndPositions};
 use mmb_domain::exchanges::symbol::Symbol;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::order::pool::OrderRef;
-use mmb_domain::order::snapshot::{OrderCancelling, OrderInfo, Price};
+use mmb_domain::order::snapshot::{ExchangeOrderId, OrderInfo, Price};
 use mmb_domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
 use std::sync::Arc;
@@ -28,15 +28,15 @@ impl ExchangeClient for Bitmex {
         }
     }
 
-    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
-        let order_header = order.header.clone();
-
-        match self.do_cancel_order(order).await {
-            Ok(_) => CancelOrderResult::succeed(
-                order_header.client_order_id.clone(),
-                EventSourceType::Rest,
-                None,
-            ),
+    async fn cancel_order(
+        &self,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
+    ) -> CancelOrderResult {
+        match self.do_cancel_order(order, exchange_order_id).await {
+            Ok(_) => {
+                CancelOrderResult::succeed(order.client_order_id(), EventSourceType::Rest, None)
+            }
             Err(err) => CancelOrderResult::failed(err, EventSourceType::Rest),
         }
     }

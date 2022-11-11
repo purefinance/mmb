@@ -11,7 +11,7 @@ use mmb_domain::events::{EventSourceType, ExchangeBalancesAndPositions};
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType};
 use mmb_domain::order::pool::OrderRef;
-use mmb_domain::order::snapshot::{OrderCancelling, OrderInfo, Price};
+use mmb_domain::order::snapshot::{ExchangeOrderId, OrderInfo, Price};
 use mmb_domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
 use rust_decimal_macros::dec;
@@ -48,9 +48,12 @@ impl ExchangeClient for InteractiveBrokers {
         }
     }
 
-    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
-        self.cancel_order_inner(order.exchange_order_id.as_str())
-            .await
+    async fn cancel_order(
+        &self,
+        _order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
+    ) -> CancelOrderResult {
+        self.cancel_order_inner(exchange_order_id.as_str()).await
     }
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {

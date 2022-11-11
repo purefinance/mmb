@@ -1,4 +1,3 @@
-use mmb_domain::order::snapshot::*;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 use std::time::Duration;
@@ -102,6 +101,7 @@ async fn cancel_opened_orders_successfully() {
     assert_eq!(orders.len(), 0);
 }
 
+/// Test for situation when we're trying to cancel an order that's not exist in exchange
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn nothing_to_cancel() {
     init_logger();
@@ -119,16 +119,13 @@ async fn nothing_to_cancel() {
         binance_builder.min_amount,
         binance_builder.default_currency_pair,
     );
-    let order_to_cancel = OrderCancelling {
-        header: order.make_header(),
-        exchange_order_id: "1234567890".into(),
-        extension_data: None,
-    };
+
+    let order_to_cancel = order.created_order_ref_stub(binance_builder.exchange.orders.clone());
 
     // Cancel last order
     let cancel_outcome = binance_builder
         .exchange
-        .cancel_order(order_to_cancel, CancellationToken::default())
+        .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
         .expect("in test");
     if let RequestResult::Error(error) = cancel_outcome.outcome {
@@ -199,17 +196,9 @@ mod futures {
 
         let _ = sleep(Duration::from_secs(5));
 
-        let order_to_cancel = OrderCancelling {
-            header: order_proxy.make_header(),
-            exchange_order_id: order_ref
-                .exchange_order_id()
-                .expect("Failed to get exchange order id of created order"),
-            extension_data: None,
-        };
-
         let cancel_outcome = binance_builder
             .exchange
-            .cancel_order(order_to_cancel, CancellationToken::default())
+            .cancel_order(&order_ref, CancellationToken::default())
             .await
             .expect("in test");
 

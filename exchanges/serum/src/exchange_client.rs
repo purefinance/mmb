@@ -16,12 +16,11 @@ use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::traits::{ExchangeClient, ExchangeError};
-use mmb_domain::events::ExchangeBalancesAndPositions;
+use mmb_domain::events::{EventSourceType, ExchangeBalancesAndPositions};
 use mmb_domain::exchanges::symbol::Symbol;
 use mmb_domain::market::{CurrencyCode, CurrencyPair};
-use mmb_domain::order::fill::EventSourceType;
 use mmb_domain::order::pool::OrderRef;
-use mmb_domain::order::snapshot::{OrderCancelling, OrderInfo, Price};
+use mmb_domain::order::snapshot::{ExchangeOrderId, OrderInfo, Price};
 use mmb_domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
 
@@ -36,13 +35,15 @@ impl ExchangeClient for Serum {
         }
     }
 
-    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
-        match self.cancel_order_core(&order).await {
-            Ok(_) => CancelOrderResult::succeed(
-                order.header.client_order_id.clone(),
-                EventSourceType::Rpc,
-                None,
-            ),
+    async fn cancel_order(
+        &self,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
+    ) -> CancelOrderResult {
+        match self.cancel_order_core(&order, exchange_order_id).await {
+            Ok(_) => {
+                CancelOrderResult::succeed(order.client_order_id(), EventSourceType::Rpc, None)
+            }
             Err(error) => CancelOrderResult::failed(error, EventSourceType::Rpc),
         }
     }
