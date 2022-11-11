@@ -773,19 +773,20 @@ impl Binance {
     #[named]
     pub(super) async fn request_cancel_order(
         &self,
-        order: OrderCancelling,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
     ) -> Result<RestResponse, ExchangeError> {
-        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
+        let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
 
         let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
         let mut builder = UriBuilder::from_path(path);
         builder.add_kv("symbol", specific_currency_pair);
-        builder.add_kv("orderId", &order.exchange_order_id);
+        builder.add_kv("orderId", exchange_order_id);
         self.add_authentification(&mut builder);
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let log_args = format!("Cancel order for {}", order.header.client_order_id);
+        let log_args = format!("Cancel order for {}", order.client_order_id());
         self.rest_client
             .delete(uri, function_name!(), log_args)
             .await

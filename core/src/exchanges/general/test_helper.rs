@@ -34,9 +34,9 @@ use mmb_domain::market::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, ExchangeOrderId, Price};
 use mmb_domain::order::snapshot::{
-    ClientOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide, OrderSnapshot, OrderType,
+    ClientOrderId, OrderInfo, OrderRole, OrderSide, OrderSnapshot, OrderType,
 };
 use mmb_domain::position::{ActivePosition, ClosedPosition};
 use parking_lot::RwLock;
@@ -65,7 +65,11 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn cancel_order(&self, _order: OrderCancelling) -> CancelOrderResult {
+    async fn cancel_order(
+        &self,
+        _order: &OrderRef,
+        _exchange_order_id: &ExchangeOrderId,
+    ) -> CancelOrderResult {
         unimplemented!("doesn't need in UT")
     }
 

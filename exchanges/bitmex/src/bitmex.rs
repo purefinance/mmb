@@ -36,8 +36,8 @@ use mmb_domain::market::{
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    ExchangeOrderId, OrderCancelling, OrderExecutionType, OrderInfo, OrderRole, OrderSide,
-    OrderStatus, OrderType, Price,
+    ExchangeOrderId, OrderExecutionType, OrderInfo, OrderRole, OrderSide, OrderStatus, OrderType,
+    Price,
 };
 use mmb_domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
 use mmb_utils::DateTime;
@@ -505,14 +505,15 @@ impl Bitmex {
     #[named]
     pub(super) async fn do_cancel_order(
         &self,
-        order: OrderCancelling,
+        order: &OrderRef,
+        exchange_order_id: &ExchangeOrderId,
     ) -> Result<RestResponse, ExchangeError> {
         let mut builder = UriBuilder::from_path("/api/v1/order");
         // Order may be canceled passing either exchange_order_id ("orderID" key) or client_order_id ("clOrdID" key)
-        builder.add_kv("orderID", &order.exchange_order_id);
+        builder.add_kv("orderID", exchange_order_id);
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
-        let log_args = format!("Cancel order for {}", order.header.client_order_id);
+        let log_args = format!("Cancel order for {}", order.client_order_id());
 
         self.rest_client
             .delete(uri, function_name!(), log_args)

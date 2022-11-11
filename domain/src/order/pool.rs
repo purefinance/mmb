@@ -5,7 +5,7 @@ use crate::order::snapshot::{
     Amount, ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderSimpleProps,
     OrderSnapshot, OrderStatus,
 };
-use crate::order::snapshot::{OrderCancelling, OrderRole, OrderSide, OrderType};
+use crate::order::snapshot::{OrderRole, OrderSide, OrderType};
 use dashmap::DashMap;
 use mmb_database::impl_event;
 use mmb_utils::DateTime;
@@ -96,25 +96,6 @@ impl OrderRef {
     }
     pub fn get_fills(&self) -> (Vec<OrderFill>, Amount) {
         self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
-    }
-
-    pub fn to_order_cancelling(&self) -> Option<OrderCancelling> {
-        self.fn_ref(|order| {
-            order
-                .props
-                .exchange_order_id
-                .as_ref()
-                .map(|exchange_order_id| OrderCancelling {
-                    header: order.header.clone(),
-                    exchange_order_id: exchange_order_id.clone(),
-                    extension_data: order.extension_data.clone(),
-                })
-        })
-    }
-
-    #[cfg(test)]
-    pub fn new(snapshot: Arc<RwLock<OrderSnapshot>>) -> Self {
-        Self(snapshot)
     }
 }
 

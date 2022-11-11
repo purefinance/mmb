@@ -1,7 +1,7 @@
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_domain::market::ExchangeAccountId;
-use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::Amount;
 use mmb_domain::order::snapshot::*;
 
@@ -15,6 +15,7 @@ use tokio::time::Duration;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::order::snapshot::Price;
 use mmb_utils::infrastructure::with_timeout;
+use parking_lot::RwLock;
 use std::sync::Arc;
 
 /// This struct needed for creating an orders in tests.
@@ -119,24 +120,40 @@ impl OrderProxy {
     }
 
     pub async fn cancel_order_or_fail(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
-        let header = self.make_header();
-        let exchange_order_id = order_ref.exchange_order_id().expect("in test");
-        let order_to_cancel = OrderCancelling {
-            header: header.clone(),
-            exchange_order_id,
-            extension_data: order_ref.fn_ref(|s| s.extension_data.clone()),
-        };
-
         order_ref.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
 
         let cancel_outcome = exchange
-            .cancel_order(order_to_cancel, CancellationToken::default())
+            .cancel_order(order_ref, CancellationToken::default())
             .await
             .expect("in test");
 
         if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
             assert_eq!(gotten_client_order_id, self.client_order_id);
         }
+    }
+
+    pub fn created_order_ref_stub(&self, orders_pool: Arc<OrdersPool>) -> OrderRef {
+        let props = OrderSimpleProps::new(
+            Utc::now(),
+            Some(self.price),
+            Some(OrderRole::Maker),
+            Some("1234567890".into()),
+            Default::default(),
+            Default::default(),
+            OrderStatus::Created,
+            None,
+        );
+
+        let snapshot = OrderSnapshot::new(
+            self.make_header(),
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
+            None,
+        );
+
+        orders_pool.add_snapshot_initial(Arc::new(RwLock::new(snapshot)))
     }
 }
 

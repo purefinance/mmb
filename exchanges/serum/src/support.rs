@@ -23,15 +23,15 @@ use mmb_core::exchanges::general::handlers::handle_order_filled::{
     FillAmount, FillEvent, SpecialOrderData,
 };
 use mmb_core::exchanges::traits::{
-    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
-    Support,
+    HandleMetricsCb, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
+    SendWebsocketMessageCb, Support,
 };
 use mmb_core::misc::time::time_manager;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{ExchangeEvent, Trade, TradeId};
+use mmb_domain::events::{EventSourceType, ExchangeEvent, Trade, TradeId};
 use mmb_domain::exchanges::commission::Percent;
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, SpecificCurrencyPair};
-use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::fill::OrderFillType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{
     Amount, ClientOrderId, ExchangeOrderId, OrderInfo, OrderInfoExtensionData, OrderRole,

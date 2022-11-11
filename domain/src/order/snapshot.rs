@@ -475,13 +475,6 @@ pub struct OrderCreating {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OrderCancelling {
-    pub header: Arc<OrderHeader>,
-    pub exchange_order_id: ExchangeOrderId,
-    pub extension_data: Option<Box<dyn OrderInfoExtensionData>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSnapshot {
     pub header: Arc<OrderHeader>,
     pub props: OrderSimpleProps,

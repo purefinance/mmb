@@ -9,7 +9,6 @@ use mmb_core::exchanges::general::features::{
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
 use mmb_domain::market::ExchangeErrorType;
-use mmb_domain::order::snapshot::OrderCancelling;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 use std::time::Duration;
@@ -83,6 +82,7 @@ async fn cancel_all() {
     assert_eq!(orders.len(), 0);
 }
 
+/// Test for situation when we're trying to cancel an order that's not exist in exchange
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn nothing_to_cancel() {
     init_logger();
@@ -102,16 +102,12 @@ async fn nothing_to_cancel() {
     );
     order_proxy.timeout = Duration::from_secs(15);
 
-    let order_to_cancel = OrderCancelling {
-        header: order_proxy.make_header(),
-        // Bitmex order id length must be 36 characters
-        exchange_order_id: "1234567890-1234567890-1234567890-123".into(),
-        extension_data: None,
-    };
+    let order_to_cancel =
+        order_proxy.created_order_ref_stub(bitmex_builder.exchange.orders.clone());
 
     let cancel_outcome = bitmex_builder
         .exchange
-        .cancel_order(order_to_cancel, CancellationToken::default())
+        .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
         .expect("in test");
     if let RequestResult::Error(error) = cancel_outcome.outcome {
@@ -168,17 +164,9 @@ async fn cancel_after_fill() {
 
     let _ = sleep(Duration::from_secs(5));
 
-    let order_to_cancel = OrderCancelling {
-        header: order_proxy.make_header(),
-        exchange_order_id: order_ref
-            .exchange_order_id()
-            .expect("Failed to get exchange order id of created order"),
-        extension_data: None,
-    };
-
     let cancel_outcome = bitmex_builder
         .exchange
-        .cancel_order(order_to_cancel, CancellationToken::default())
+        .cancel_order(&order_ref, CancellationToken::default())
         .await
         .expect("in test");
 
