@@ -382,9 +382,6 @@ impl Binance {
         event_time: DateTime,
     ) -> Result<()> {
         // TODO need special handler for OCO orders
-        let client_order_id = json_response["c"]
-            .as_str()
-            .ok_or_else(|| anyhow!("Unable to parse client order id"))?;
 
         let exchange_order_id = json_response["i"].to_string();
         let exchange_order_id = exchange_order_id.trim_matches('"');
@@ -397,6 +394,16 @@ impl Binance {
         let time_in_force = json_response["f"]
             .as_str()
             .ok_or_else(|| anyhow!("Unable to parse time in force"))?;
+
+        let client_order_id = {
+            let field_name = match execution_type {
+                "CANCELED" | "EXPIRED" if !self.settings.is_margin_trading => "C",
+                _ => "c",
+            };
+            json_response[field_name]
+                .as_str()
+                .ok_or_else(|| anyhow!("Unable to parse client order id"))?
+        };
 
         match execution_type {
             "NEW" => match order_status {
