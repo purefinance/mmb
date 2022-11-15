@@ -5,7 +5,6 @@ use crate::order::fill::OrderFill;
 use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
-use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{impl_from_for_str_id, DateTime};
 use mmb_utils::{impl_str_id, impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;
@@ -179,6 +178,11 @@ pub struct OrderHeader {
     pub order_type: OrderType,
 
     pub side: OrderSide,
+
+    /// Price of order specified by exchange client before order creation.
+    /// Price should be specified for `Limit` order and should not be specified for `Market` order.
+    /// For other order types it depends on exchange requirements.
+    pub source_price: Option<Price>,
     pub amount: Amount,
 
     pub execution_type: OrderExecutionType,
@@ -197,6 +201,7 @@ impl OrderHeader {
         currency_pair: CurrencyPair,
         order_type: OrderType,
         side: OrderSide,
+        source_price: Option<Price>,
         amount: Amount,
         execution_type: OrderExecutionType,
         reservation_id: Option<ReservationId>,
@@ -209,6 +214,7 @@ impl OrderHeader {
             currency_pair,
             order_type,
             side,
+            source_price,
             amount,
             execution_type,
             reservation_id,
@@ -230,12 +236,17 @@ impl OrderHeader {
             currency_pair: self.currency_pair,
         }
     }
+
+    /// NOTE: Should be used only in cases when we sure that price specified
+    pub fn price(&self) -> Price {
+        self.source_price
+            .unwrap_or_else(|| panic!("Cannot get price from order {}", self.client_order_id))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
     pub init_time: DateTime,
-    pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
     pub exchange_order_id: Option<ExchangeOrderId>,
     pub stop_loss_price: Decimal,
@@ -250,7 +261,6 @@ impl OrderSimpleProps {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         init_time: DateTime,
-        raw_price: Option<Price>,
         role: Option<OrderRole>,
         exchange_order_id: Option<ExchangeOrderId>,
         stop_loss_price: Decimal,
@@ -260,7 +270,6 @@ impl OrderSimpleProps {
     ) -> Self {
         Self {
             init_time,
-            raw_price,
             role,
             exchange_order_id,
             stop_loss_price,
@@ -270,10 +279,9 @@ impl OrderSimpleProps {
         }
     }
 
-    pub fn from_init_time_and_price(init_time: DateTime, price: Option<Price>) -> OrderSimpleProps {
+    pub fn from_init_time(init_time: DateTime) -> OrderSimpleProps {
         Self {
             init_time,
-            raw_price: price,
             role: None,
             exchange_order_id: None,
             stop_loss_price: Default::default(),
@@ -469,12 +477,6 @@ impl OrderInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OrderCreating {
-    pub header: Arc<OrderHeader>,
-    pub price: Price,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSnapshot {
     pub header: Arc<OrderHeader>,
     pub props: OrderSimpleProps,
@@ -516,7 +518,7 @@ impl OrderSnapshot {
         order_role: Option<OrderRole>,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
-        price: Price,
+        source_price: Option<Price>,
         amount: Amount,
         order_side: OrderSide,
         reservation_id: Option<ReservationId>,
@@ -528,6 +530,7 @@ impl OrderSnapshot {
             currency_pair,
             order_type,
             order_side,
+            source_price,
             amount,
             OrderExecutionType::None,
             reservation_id,
@@ -535,7 +538,7 @@ impl OrderSnapshot {
             strategy_name.to_owned(),
         );
 
-        let mut props = OrderSimpleProps::from_init_time_and_price(Utc::now(), Some(price));
+        let mut props = OrderSimpleProps::from_init_time(Utc::now());
         props.role = order_role;
 
         Self::new(
@@ -573,11 +576,16 @@ impl OrderSnapshot {
         self.props.is_finished()
     }
 
+    /// NOTE: Should be used only in cases when we sure that price specified
     pub fn price(&self) -> Price {
-        self.props.raw_price.with_expect(|| {
-            let client_order_id = self.header.client_order_id.as_str();
-            format!("Cannot get price from order {client_order_id}")
-        })
+        self.header.price()
+    }
+
+    /// Price of order specified by exchange client before order creation.
+    /// Price should be specified for `Limit` order and should not be specified for `Market` order.
+    /// For other order types it depends on exchange requirements.
+    pub fn source_price(&self) -> Option<Price> {
+        self.header.source_price
     }
 
     pub fn amount(&self) -> Amount {

@@ -97,6 +97,7 @@ impl OrderProxy {
             self.currency_pair,
             self.order_type,
             self.side,
+            Some(self.price),
             self.amount,
             self.execution_type,
             self.reservation_id,
@@ -107,14 +108,10 @@ impl OrderProxy {
 
     pub async fn create_order(&self, exchange: Arc<Exchange>) -> Result<OrderRef> {
         let header = self.make_header();
-        let to_create = OrderCreating {
-            price: self.price,
-            header: header.clone(),
-        };
 
         with_timeout(
             self.timeout,
-            exchange.create_order(to_create, None, self.cancellation_token.clone()),
+            exchange.create_order(header, None, self.cancellation_token.clone()),
         )
         .await
     }
@@ -135,7 +132,6 @@ impl OrderProxy {
     pub fn created_order_ref_stub(&self, orders_pool: Arc<OrdersPool>) -> OrderRef {
         let props = OrderSimpleProps::new(
             Utc::now(),
-            Some(self.price),
             Some(OrderRole::Maker),
             Some("1234567890".into()),
             Default::default(),

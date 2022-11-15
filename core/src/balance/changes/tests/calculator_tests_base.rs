@@ -274,7 +274,7 @@ pub mod tests {
                 None,
                 exchange_account_id,
                 currency_pair,
-                price,
+                Some(price),
                 amount,
                 trade_side,
                 None,

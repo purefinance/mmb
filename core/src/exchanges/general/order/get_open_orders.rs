@@ -124,6 +124,7 @@ impl Exchange {
                 order.currency_pair,
                 OrderType::Unknown,
                 order.order_side,
+                Some(order.price),
                 order.amount,
                 OrderExecutionType::None,
                 None,
@@ -133,7 +134,6 @@ impl Exchange {
 
             let props = OrderSimpleProps::new(
                 time_manager::now(),
-                Some(order.price),
                 None,
                 Some(order.exchange_order_id.clone()),
                 Default::default(),

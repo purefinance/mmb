@@ -305,9 +305,13 @@ impl Serum {
         open_order_account: Pubkey,
         order: &OrderRef,
     ) -> Result<Instruction> {
-        let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
+        let header = order.header();
         let side = header.side;
-        let price = metadata.make_price(price);
+        // TODO implement Market order support for Serum
+        let source_price = header
+            .source_price
+            .expect("Price should be specified for Limit order");
+        let price = metadata.make_price(source_price);
         let amount = metadata.make_size(header.amount);
         let max_native_price = metadata.make_max_native(price, amount);
         let client_order_id =

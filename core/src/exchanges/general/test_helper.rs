@@ -335,7 +335,7 @@ pub(crate) fn create_order_ref(
         role,
         exchange_account_id,
         currency_pair,
-        price,
+        Some(price),
         amount,
         side,
         None,

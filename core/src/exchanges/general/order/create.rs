@@ -14,12 +14,13 @@ use mmb_domain::market::{ExchangeAccountId, ExchangeErrorType};
 use mmb_domain::order::event::OrderEventType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{
-    ClientOrderId, ExchangeOrderId, OrderCreating, OrderInfo, OrderStatus, OrderType,
+    ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfo, OrderStatus, OrderType,
 };
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::time::ToStdExpected;
 use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
 use std::borrow::Cow;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::{sleep, timeout};
@@ -49,18 +50,17 @@ impl CreateOrderResult {
 impl Exchange {
     pub async fn create_order(
         &self,
-        order_to_create: OrderCreating,
+        order_header: Arc<OrderHeader>,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
         use AllowedEventSourceType::*;
 
-        log::info!("Submitting order {order_to_create:?}");
+        log::info!("Submitting order {order_header:?}");
 
         let order = self.orders.add_simple_initial(
-            order_to_create.header.clone(),
+            order_header.clone(),
             time_manager::now(),
-            Some(order_to_create.price),
             self.exchange_client.get_initial_extension_data(),
         );
 

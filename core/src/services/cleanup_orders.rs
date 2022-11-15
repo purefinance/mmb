@@ -69,13 +69,14 @@ mod tests {
             CurrencyPair::from_codes("a".into(), "b".into()),
             OrderType::Limit,
             OrderSide::Buy,
+            Some(dec!(0.5)),
             dec!(1),
             OrderExecutionType::None,
             None,
             None,
             "".to_string(),
         );
-        let order_ref = pool.add_simple_initial(header, now, Some(dec!(0.5)), None);
+        let order_ref = pool.add_simple_initial(header, now, None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
         // deadline has arrived
@@ -97,13 +98,14 @@ mod tests {
             CurrencyPair::from_codes("a".into(), "b".into()),
             OrderType::Limit,
             OrderSide::Buy,
+            Some(dec!(0.5)),
             dec!(1),
             OrderExecutionType::None,
             None,
             None,
             "".to_string(),
         );
-        let order_ref = pool.add_simple_initial(header, now, Some(dec!(0.5)), None);
+        let order_ref = pool.add_simple_initial(header, now, None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
         // deadline has not arrived
@@ -125,13 +127,14 @@ mod tests {
             CurrencyPair::from_codes("a".into(), "b".into()),
             OrderType::Limit,
             OrderSide::Buy,
+            Some(dec!(0.5)),
             dec!(1),
             OrderExecutionType::None,
             None,
             None,
             "".to_string(),
         );
-        pool.add_simple_initial(header, now, Some(dec!(0.5)), None);
+        pool.add_simple_initial(header, now, None);
 
         let deadline = now + Duration::minutes(5);
         cleanup(&pool.cache_by_client_id, deadline);

@@ -311,10 +311,9 @@ impl Bitmex {
         &self,
         order: &OrderRef,
     ) -> Result<RestResponse, ExchangeError> {
-        let (header, price, stop_loss_price, mut trailing_stop_delta) = order.fn_ref(|order| {
+        let (header, stop_loss_price, mut trailing_stop_delta) = order.fn_ref(|order| {
             (
                 order.header.clone(),
-                order.price(),
                 order.props.stop_loss_price,
                 order.props.trailing_stop_delta,
             )
@@ -331,6 +330,7 @@ impl Bitmex {
             OrderType::Market => builder.add_kv("ordType", "Market"),
             OrderType::Limit => {
                 builder.add_kv("ordType", "Limit");
+                let price = header.source_price.with_context(|| format!("Order {} has no price specified. Price should be set for Limit orders on Bitmex", header.client_order_id))?;
                 builder.add_kv("price", price);
                 if header.execution_type == OrderExecutionType::MakerOnly {
                     builder.add_kv("execInst", "ParticipateDoNotInitiate");

@@ -892,7 +892,7 @@ impl Binance {
         &self,
         order: &OrderRef,
     ) -> Result<RestResponse, ExchangeError> {
-        let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
+        let header = order.header();
         let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
         let is_margin_trading = self.settings.is_margin_trading;
 
@@ -905,6 +905,7 @@ impl Binance {
         builder.add_kv("newClientOrderId", &header.client_order_id);
 
         if header.order_type != OrderType::Market {
+            let price = header.source_price.with_context(|| format!("Order {} has no price specified. Price should be set for all orders except Market on Binance", header.client_order_id))?;
             builder.add_kv("price", price);
         }
 
