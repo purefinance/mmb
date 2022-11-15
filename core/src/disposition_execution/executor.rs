@@ -37,8 +37,8 @@ use mmb_domain::order::event::OrderEventType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_domain::order::snapshot::{
-    ClientOrderId, OrderCreating, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot,
-    OrderStatus, OrderType,
+    ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot, OrderStatus,
+    OrderType,
 };
 use mmb_utils::cancellation_token::CancellationToken;
 
@@ -703,12 +703,13 @@ impl DispositionExecutor {
 
         *price_slot.estimating.borrow_mut() = Some(Box::new(new_estimating.clone()));
 
-        let new_order_header = OrderHeader::new(
+        let order_header = OrderHeader::new(
             new_client_order_id.clone(),
             self.exchange_account_id,
             self.symbol.currency_pair(),
             OrderType::Limit,
             new_disposition.side(),
+            Some(new_disposition.price()),
             new_order_amount,
             OrderExecutionType::MakerOnly,
             Some(reservation_id),
@@ -719,9 +720,8 @@ impl DispositionExecutor {
         let exchange = self.exchange();
 
         let new_order = exchange.orders.add_simple_initial(
-            new_order_header.clone(),
+            order_header.clone(),
             now,
-            Some(new_disposition.price()),
             exchange.exchange_client.get_initial_extension_data(),
         );
 
@@ -743,13 +743,8 @@ impl DispositionExecutor {
             let action = async move {
                 log::trace!("Begin create_order {new_client_order_id}");
 
-                let order_creating = OrderCreating {
-                    header: new_order_header,
-                    price: new_price,
-                };
-
                 exchange
-                    .create_order(order_creating, Some(requests_group_id), cancellation_token)
+                    .create_order(order_header, Some(requests_group_id), cancellation_token)
                     .await?;
 
                 log::trace!("Finished create_order {new_client_order_id}");

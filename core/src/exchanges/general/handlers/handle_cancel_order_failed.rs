@@ -155,6 +155,7 @@ mod test {
                 currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
+                Some(order_price),
                 order_amount,
                 OrderExecutionType::None,
                 None,
@@ -163,7 +164,6 @@ mod test {
             );
             let props = OrderSimpleProps::new(
                 Utc::now(),
-                Some(order_price),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
                 Default::default(),
@@ -215,6 +215,7 @@ mod test {
                 currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
+                Some(order_price),
                 order_amount,
                 OrderExecutionType::None,
                 None,
@@ -223,7 +224,6 @@ mod test {
             );
             let props = OrderSimpleProps::new(
                 Utc::now(),
-                Some(order_price),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
                 Default::default(),
@@ -279,6 +279,7 @@ mod test {
                 currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
+                Some(order_price),
                 order_amount,
                 OrderExecutionType::None,
                 None,
@@ -287,7 +288,6 @@ mod test {
             );
             let props = OrderSimpleProps::new(
                 Utc::now(),
-                Some(order_price),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
                 Default::default(),
@@ -358,6 +358,7 @@ mod test {
                 currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
+                Some(order_price),
                 order_amount,
                 OrderExecutionType::None,
                 None,
@@ -366,7 +367,6 @@ mod test {
             );
             let props = OrderSimpleProps::new(
                 Utc::now(),
-                Some(order_price),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
                 Default::default(),
@@ -446,6 +446,7 @@ mod test {
             currency_pair,
             OrderType::Limit,
             OrderSide::Buy,
+            Some(order_price),
             order_amount,
             OrderExecutionType::None,
             None,
@@ -454,7 +455,6 @@ mod test {
         );
         let props = OrderSimpleProps::new(
             Utc::now(),
-            Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),
             Default::default(),
@@ -524,6 +524,7 @@ mod test {
             currency_pair,
             OrderType::Limit,
             OrderSide::Buy,
+            Some(order_price),
             order_amount,
             OrderExecutionType::None,
             None,
@@ -532,7 +533,6 @@ mod test {
         );
         let props = OrderSimpleProps::new(
             Utc::now(),
-            Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),
             Default::default(),

@@ -99,7 +99,7 @@ fn save_transaction(
     let mut transaction = TransactionSnapshot::new(
         order.market_id(),
         order.side(),
-        order.props.raw_price,
+        order.source_price(),
         order.amount(),
         status,
         strategy_name,

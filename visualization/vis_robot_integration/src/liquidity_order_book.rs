@@ -53,15 +53,18 @@ pub fn create_liquidity_order_book_snapshot(
     let orders = orders_pool
         .not_finished
         .iter()
-        .filter_map(|x| {
-            x.fn_ref(|os| match os.props.status {
-                OrderStatus::Created | OrderStatus::Canceling => Some(LiquidityOrder {
-                    client_order_id: os.header.client_order_id.clone(),
-                    side: os.header.side,
-                    price: os.price(),
-                    amount: os.amount(),
-                    remaining_amount: os.amount() - os.filled_amount(),
-                }),
+        .filter_map(|pair_ref| {
+            pair_ref.fn_ref(|x| match (x.props.status, x.source_price()) {
+                // save for visualization non-market orders
+                (OrderStatus::Created | OrderStatus::Canceling, Some(price)) => {
+                    Some(LiquidityOrder {
+                        client_order_id: x.header.client_order_id.clone(),
+                        side: x.header.side,
+                        price,
+                        amount: x.amount(),
+                        remaining_amount: x.amount() - x.filled_amount(),
+                    })
+                }
                 _ => None,
             })
         })

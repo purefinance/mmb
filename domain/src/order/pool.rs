@@ -46,6 +46,11 @@ impl OrderRef {
         f(self.0.write().borrow_mut())
     }
 
+    pub fn header(&self) -> Arc<OrderHeader> {
+        self.fn_ref(|x| x.header.clone())
+    }
+
+    /// NOTE: Should be used only in cases when we sure that price specified
     pub fn price(&self) -> Decimal {
         self.fn_ref(|x| x.price())
     }
@@ -135,13 +140,12 @@ impl OrdersPool {
         &self,
         header: Arc<OrderHeader>,
         init_time: DateTime,
-        price: Option<Decimal>,
         extension_data: Option<Box<dyn OrderInfoExtensionData>>,
     ) -> OrderRef {
         match self.cache_by_client_id.get(&header.client_order_id) {
             None => {
                 let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-                    props: OrderSimpleProps::from_init_time_and_price(init_time, price),
+                    props: OrderSimpleProps::from_init_time(init_time),
                     header,
                     fills: Default::default(),
                     status_history: Default::default(),

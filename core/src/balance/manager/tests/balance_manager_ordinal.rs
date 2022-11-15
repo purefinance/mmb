@@ -3794,12 +3794,12 @@ mod tests {
         let order_1 = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::generate());
-        let mut order_2 = test_object.balance_manager_base.create_order_by_amount(
+        let order_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
+            Some(dec!(1.2) * order_1.price()),
             dec!(1.3) * order_1.amount(),
             ReservationId::generate(),
         );
-        order_2.props.raw_price = Some(dec!(1.2) * order_2.price());
 
         let price = dec!(1.5) * order_1.price();
         let reservation_amount = dec!(3) * order_1.amount();
@@ -3928,17 +3928,18 @@ mod tests {
 
         let mut order_1 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
+            Some(dec!(0.2)),
             order_1_amount,
             reservation_id,
         );
         order_1.set_status(OrderStatus::Created, Utc::now());
 
-        let mut order_2 = test_object.balance_manager_base.create_order_by_amount(
+        let mut _order_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
+            Some(dec!(1.2) * order_1.price()),
             order_2_amount,
             reservation_id,
         );
-        order_2.props.raw_price = Some(dec!(1.2) * order_2.price());
 
         test_object.balance_manager().approve_reservation(
             reservation_id,
@@ -4057,18 +4058,18 @@ mod tests {
 
         let mut order_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
+            Some(dec!(1.2) * order_1.price()),
             dec!(1.3) * order_1.amount(),
             reservation_id,
         );
-        order_2.props.raw_price = Some(dec!(1.2) * order_2.price());
         order_2.set_status(OrderStatus::Creating, Utc::now());
 
         let mut order_3 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
+            Some(dec!(1.1) * order_1.price()),
             dec!(1.1) * order_1.amount(),
             reservation_id,
         );
-        order_3.props.raw_price = Some(dec!(1.1) * order_3.price());
         order_3.set_status(OrderStatus::Created, Utc::now());
 
         test_object.balance_manager().approve_reservation(

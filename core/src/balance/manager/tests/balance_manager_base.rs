@@ -242,12 +242,13 @@ impl BalanceManagerBase {
         order_side: OrderSide,
         reservation_id: ReservationId,
     ) -> OrderSnapshot {
-        self.create_order_by_amount(order_side, dec!(5), reservation_id)
+        self.create_order_by_amount(order_side, Some(dec!(0.2)), dec!(5), reservation_id)
     }
 
     pub fn create_order_by_amount(
         &mut self,
         order_side: OrderSide,
+        price: Option<Price>,
         amount: Amount,
         reservation_id: ReservationId,
     ) -> OrderSnapshot {
@@ -258,13 +259,14 @@ impl BalanceManagerBase {
                 self.symbol().currency_pair(),
                 OrderType::Limit,
                 order_side,
+                price,
                 amount,
                 OrderExecutionType::None,
                 Some(reservation_id),
                 None,
                 "balance_manager_base".into(),
             ),
-            props: OrderSimpleProps::from_init_time_and_price(time_manager::now(), Some(dec!(0.2))),
+            props: OrderSimpleProps::from_init_time(time_manager::now()),
             fills: Default::default(),
             status_history: Default::default(),
             internal_props: Default::default(),
