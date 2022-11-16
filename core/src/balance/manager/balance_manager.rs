@@ -449,7 +449,7 @@ impl BalanceManager {
 
     pub fn clone_and_subtract_not_approved_data(
         this: Arc<Mutex<Self>>,
-        orders: Option<Vec<OrderRef>>,
+        orders: Option<&mut dyn Iterator<Item = &'_ OrderRef>>,
     ) -> Result<Arc<Mutex<BalanceManager>>> {
         let balance_manager = Self::custom_clone(this);
 
@@ -463,14 +463,11 @@ impl BalanceManager {
             .map(|(id, reservation)| (*id, reservation.clone()))
             .collect();
 
-        let orders_to_subtract = orders.unwrap_or_default();
-
-        let mut applied_orders = HashSet::new();
-        for order in orders_to_subtract {
-            let (is_finished, order_type, client_order_id, reservation_id, status) =
-                order.fn_ref(|x| {
+        if let Some(orders_to_subtract) = orders {
+            let mut applied_orders = HashSet::new();
+            for order in orders_to_subtract {
+                let (order_type, client_order_id, reservation_id, status) = order.fn_ref(|x| {
                     (
-                        x.props.is_finished(),
                         x.header.order_type,
                         x.header.client_order_id.clone(),
                         x.header.reservation_id,
@@ -478,25 +475,26 @@ impl BalanceManager {
                     )
                 });
 
-            if is_finished || status == OrderStatus::Creating {
-                continue;
-            }
+                if status.is_finished() || status == OrderStatus::Creating {
+                    continue;
+                }
 
-            if order_type == OrderType::Market {
-                bail!("Clone doesn't support market orders because we need to know the price")
-            }
+                if order_type == OrderType::Market {
+                    bail!("Clone doesn't support market orders because we need to know the price")
+                }
 
-            if applied_orders.insert(client_order_id.clone()) {
-                let reservation_id = match reservation_id {
-                    Some(reservation_id) => reservation_id,
-                    None => continue,
-                };
+                if applied_orders.insert(client_order_id.clone()) {
+                    let reservation_id = match reservation_id {
+                        Some(reservation_id) => reservation_id,
+                        None => continue,
+                    };
 
-                bm_locked.unreserve_by_client_order_id(
-                    reservation_id,
-                    client_order_id,
-                    order.amount(),
-                )?
+                    bm_locked.unreserve_by_client_order_id(
+                        reservation_id,
+                        client_order_id,
+                        order.amount(),
+                    )?
+                }
             }
         }
 

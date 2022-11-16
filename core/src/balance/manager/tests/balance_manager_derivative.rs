@@ -1895,7 +1895,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order_ref]),
+            Some(&mut vec![order_ref].iter()),
         )
         .expect("in test");
 
@@ -1976,7 +1976,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order_ref]),
+            Some(&mut vec![order_ref].iter()),
         )
         .expect("in test");
 
