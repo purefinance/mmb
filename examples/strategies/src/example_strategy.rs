@@ -175,7 +175,7 @@ impl ExampleStrategy {
 
             let balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
                 self.engine_context.balance_manager.clone(),
-                Some(orders),
+                Some(&mut orders.iter()),
             )
             .expect("ExampleStrategy::calc_trading_context_by_side: failed to clone and subtract not approved data for BalanceManager");
 
