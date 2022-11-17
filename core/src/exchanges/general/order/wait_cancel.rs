@@ -85,23 +85,19 @@ impl Exchange {
                 .await?;
         }
 
-        let (is_canceling_from_wait_cancel_order, is_finished, client_order_id, exchange_order_id) =
+        let (is_canceling_from_wait_cancel_order, is_finished, exchange_order_id) =
             order.fn_mut(|order| {
                 let current = order.internal_props.is_canceling_from_wait_cancel_order;
                 order.internal_props.is_canceling_from_wait_cancel_order = true;
 
-                (
-                    current,
-                    order.is_finished(),
-                    order.client_order_id(),
-                    order.exchange_order_id(),
-                )
+                (current, order.is_finished(), order.exchange_order_id())
             });
 
         if is_finished {
             return Ok(());
         }
 
+        let client_order_id = order.client_order_id();
         if is_canceling_from_wait_cancel_order {
             log::error!("Order {client_order_id} {exchange_order_id:?} is already cancelling by wait_cancel_order");
 
@@ -250,10 +246,10 @@ impl Exchange {
         let cancelled_order = order.fn_ref(|s| {
             (!s.internal_props.canceled_not_from_wait_cancel_order  //i. e. an order was refused by an exchange
             && s.props.status != OrderStatus::Completed)
-                .then(|| (s.client_order_id(), s.exchange_order_id()))
+                .then(|| s.exchange_order_id())
         });
 
-        if let Some((client_order_id, exchange_order_id)) = cancelled_order {
+        if let Some(exchange_order_id) = cancelled_order {
             log::trace!("Adding CancelOrderSucceeded event from wait_cancel_order() for order {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);
 
             self.add_event_on_order_change(order, OrderEventType::CancelOrderSucceeded)?;
@@ -423,19 +419,15 @@ impl Exchange {
     }
 
     fn has_missed_fill(&self, order: &OrderRef) -> bool {
-        let (
-            client_order_id,
-            exchange_order_id,
-            order_filled_amount_after_cancellation,
-            order_filled_amount,
-        ) = order.fn_ref(|s| {
-            (
-                s.client_order_id(),
-                s.exchange_order_id(),
-                s.internal_props.filled_amount_after_cancellation,
-                s.filled_amount(),
-            )
-        });
+        let client_order_id = order.client_order_id();
+        let (exchange_order_id, order_filled_amount_after_cancellation, order_filled_amount) =
+            order.fn_ref(|x| {
+                (
+                    x.exchange_order_id(),
+                    x.internal_props.filled_amount_after_cancellation,
+                    x.filled_amount(),
+                )
+            });
 
         log::trace!("Order with {client_order_id}, {exchange_order_id:?} order_filled_amount_after_cancellation: {order_filled_amount_after_cancellation:?}, order_filed_amount: {order_filled_amount}");
 

@@ -45,7 +45,8 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         event_source_type: EventSourceType,
     ) {
-        let (status, client_order_id) = order.fn_ref(|x| (x.status(), x.client_order_id()));
+        let client_order_id = order.client_order_id();
+        let status = order.status();
         match status {
             OrderStatus::Canceled | OrderStatus::Completed => log::warn!("cancel_order_failed was called for already {status:?} order: {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id),
             _ => {
@@ -91,7 +92,7 @@ impl Exchange {
                 );
 
                 self.event_recorder
-                    .save(order.clone())
+                    .save(&mut order.deep_clone())
                     .expect("Failure save order");
             }
         }
@@ -107,15 +108,13 @@ mod test {
     use mmb_domain::market::CurrencyPair;
     use mmb_domain::market::ExchangeErrorType;
     use mmb_domain::order::pool::OrdersPool;
-    use mmb_domain::order::snapshot::OrderRole;
     use mmb_domain::order::snapshot::{
-        ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide, OrderSimpleProps,
-        OrderSnapshot, OrderStatusHistory, OrderType, SystemInternalOrderProps,
+        ClientOrderId, OrderFills, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
+        OrderStatusHistory, SystemInternalOrderProps,
     };
-    use parking_lot::RwLock;
+    use mmb_domain::order::snapshot::{OrderRole, UserOrder};
     use rust_decimal_macros::dec;
     use std::mem::discriminant;
-    use std::sync::Arc;
     use tokio::sync::broadcast::error::TryRecvError;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -135,6 +134,7 @@ mod test {
 
     mod order_status {
         use super::*;
+        use mmb_domain::order::snapshot::UserOrder;
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn order_canceled() {
             // Arrange
@@ -149,15 +149,13 @@ mod test {
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
 
-            let header = OrderHeader::new(
+            let header = OrderHeader::with_user_order(
                 client_order_id,
                 exchange.exchange_account_id,
                 currency_pair,
-                OrderType::Limit,
                 OrderSide::Buy,
-                Some(order_price),
                 order_amount,
-                OrderExecutionType::None,
+                UserOrder::limit(order_price),
                 None,
                 None,
                 "FromTest".to_owned(),
@@ -166,8 +164,6 @@ mod test {
                 Utc::now(),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
-                Default::default(),
-                Default::default(),
                 OrderStatus::Canceled,
                 None,
             );
@@ -180,7 +176,7 @@ mod test {
                 None,
             );
             let order_pool = OrdersPool::new();
-            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            let order_ref = order_pool.add_snapshot_initial(&order);
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
             // Act
@@ -209,15 +205,13 @@ mod test {
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
 
-            let header = OrderHeader::new(
+            let header = OrderHeader::with_user_order(
                 client_order_id,
                 exchange.exchange_account_id,
                 currency_pair,
-                OrderType::Limit,
                 OrderSide::Buy,
-                Some(order_price),
                 order_amount,
-                OrderExecutionType::None,
+                UserOrder::limit(order_price),
                 None,
                 None,
                 "FromTest".to_owned(),
@@ -226,8 +220,6 @@ mod test {
                 Utc::now(),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
-                Default::default(),
-                Default::default(),
                 OrderStatus::Completed,
                 None,
             );
@@ -240,7 +232,7 @@ mod test {
                 None,
             );
             let order_pool = OrdersPool::new();
-            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            let order_ref = order_pool.add_snapshot_initial(&order);
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
             // Act
@@ -259,6 +251,7 @@ mod test {
     mod order_not_found {
         use super::*;
         use mmb_domain::events::ExchangeEvent;
+        use mmb_domain::order::snapshot::UserOrder;
         use std::mem::discriminant;
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -273,15 +266,13 @@ mod test {
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
 
-            let header = OrderHeader::new(
+            let header = OrderHeader::with_user_order(
                 client_order_id,
                 exchange.exchange_account_id,
                 currency_pair,
-                OrderType::Limit,
                 OrderSide::Buy,
-                Some(order_price),
                 order_amount,
-                OrderExecutionType::None,
+                UserOrder::limit(order_price),
                 None,
                 None,
                 "FromTest".to_owned(),
@@ -290,8 +281,6 @@ mod test {
                 Utc::now(),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
-                Default::default(),
-                Default::default(),
                 Default::default(),
                 None,
             );
@@ -305,7 +294,7 @@ mod test {
             );
             let order_pool = OrdersPool::new();
             order.internal_props.is_canceling_from_wait_cancel_order = true;
-            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            let order_ref = order_pool.add_snapshot_initial(&order);
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
             let error = ExchangeError::new(
@@ -352,15 +341,13 @@ mod test {
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
 
-            let header = OrderHeader::new(
+            let header = OrderHeader::with_user_order(
                 client_order_id,
                 exchange.exchange_account_id,
                 currency_pair,
-                OrderType::Limit,
                 OrderSide::Buy,
-                Some(order_price),
                 order_amount,
-                OrderExecutionType::None,
+                UserOrder::limit(order_price),
                 None,
                 None,
                 "FromTest".to_owned(),
@@ -369,8 +356,6 @@ mod test {
                 Utc::now(),
                 Some(order_role),
                 Some(exchange_order_id.clone()),
-                Default::default(),
-                Default::default(),
                 Default::default(),
                 None,
             );
@@ -384,7 +369,7 @@ mod test {
             );
             order.internal_props.is_canceling_from_wait_cancel_order = false;
             let order_pool = OrdersPool::new();
-            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            let order_ref = order_pool.add_snapshot_initial(&order);
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
             let error = ExchangeError::new(
@@ -440,15 +425,13 @@ mod test {
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
 
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -457,8 +440,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             OrderStatus::Created,
             None,
         );
@@ -471,7 +452,7 @@ mod test {
             None,
         );
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let error = ExchangeError::new(
@@ -518,15 +499,13 @@ mod test {
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
 
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -535,8 +514,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             OrderStatus::Created,
             None,
         );
@@ -549,7 +526,7 @@ mod test {
             None,
         );
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let error = ExchangeError::authentication("Authentication error".to_owned());

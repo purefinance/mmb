@@ -34,12 +34,9 @@ use mmb_domain::market::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
-use mmb_domain::order::snapshot::{Amount, ExchangeOrderId, Price};
-use mmb_domain::order::snapshot::{
-    ClientOrderId, OrderInfo, OrderRole, OrderSide, OrderSnapshot, OrderType,
-};
+use mmb_domain::order::snapshot::{Amount, ExchangeOrderId, OrderOptions, Price};
+use mmb_domain::order::snapshot::{ClientOrderId, OrderInfo, OrderRole, OrderSide, OrderSnapshot};
 use mmb_domain::position::{ActivePosition, ClosedPosition};
-use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 use url::Url;
@@ -331,11 +328,10 @@ pub(crate) fn create_order_ref(
 ) -> OrderRef {
     let order = OrderSnapshot::with_params(
         client_order_id.clone(),
-        OrderType::Liquidation,
+        OrderOptions::liquidation(price),
         role,
         exchange_account_id,
         currency_pair,
-        Some(price),
         amount,
         side,
         None,
@@ -343,7 +339,7 @@ pub(crate) fn create_order_ref(
     );
 
     let order_pool = OrdersPool::new();
-    order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+    order_pool.add_snapshot_initial(&order);
     let order_ref = order_pool
         .cache_by_client_id
         .get(client_order_id)

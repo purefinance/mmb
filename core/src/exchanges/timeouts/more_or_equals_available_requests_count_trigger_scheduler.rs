@@ -72,7 +72,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
             return;
         }
 
-        // Note: suppose that requests restriction same as in RequestsTimeoutManager (requests count in specified time period)
+        // NOTE: suppose that requests restriction same as in RequestsTimeoutManager (requests count in specified time period)
         // It logical dependency to RequestsTimeoutManager how calculate trigger time
         // var triggerTime = isGreater ? lastRequestTime : lastRequestTime + periodDuration;
         let trigger_time = last_request_time + period_duration;

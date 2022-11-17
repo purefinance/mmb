@@ -119,12 +119,12 @@ pub trait ExchangeClient: Support {
 
     /// Must be implemented for derivative exchanges
     /// /// If exchange doesn't support futures the method must call panic (unimplemented!())
-    /// Note: we should get only open account positions
+    /// NOTE: we should get only open account positions
     async fn get_active_positions(&self) -> Result<Vec<ActivePosition>>;
 
     /// Getting only balance when spot and balance and positions when derivative
     /// Should get both balance and positions from single request if possible
-    /// Note: we expect all wallet currencies balances
+    /// NOTE: we expect all wallet currencies balances
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions>;
 
     /// # Params

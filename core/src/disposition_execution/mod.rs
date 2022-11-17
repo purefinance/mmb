@@ -3,21 +3,19 @@ pub mod strategy;
 pub mod trade_limit;
 mod trading_context_calculation;
 
+use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::explanation::{Explanation, ExplanationSet, PriceLevelExplanation, WithExplanation};
+use enum_map::{enum_map, EnumMap};
+use itertools::Itertools;
+use mmb_domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId, MarketId};
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{ClientOrderId, OrderRole, OrderSide};
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-
-use enum_map::{enum_map, EnumMap};
-use itertools::Itertools;
-use mmb_domain::order::snapshot::{Amount, Price};
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-
-use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::explanation::{Explanation, ExplanationSet, PriceLevelExplanation, WithExplanation};
-use mmb_domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId, MarketId};
-use mmb_domain::order::pool::OrderRef;
-use mmb_domain::order::snapshot::{ClientOrderId, OrderRole, OrderSide};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct SmallOrder {
@@ -240,11 +238,10 @@ impl CompositeOrder {
             .iter()
             .filter_map(|(_, or)| {
                 let order = &or.order;
-                if !order.is_finished() {
-                    Some(order.fn_ref(|x| x.header.amount - x.fills.filled_amount))
-                } else {
-                    None
-                }
+                order.fn_ref(|x| match !x.is_finished() {
+                    true => Some(order.amount() - x.filled_amount()),
+                    false => None,
+                })
             })
             .sum()
     }

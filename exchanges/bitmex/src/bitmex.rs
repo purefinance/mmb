@@ -36,8 +36,8 @@ use mmb_domain::market::{
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    ExchangeOrderId, OrderExecutionType, OrderInfo, OrderRole, OrderSide, OrderStatus, OrderType,
-    Price,
+    ExchangeOrderId, ExternalOrder, OrderExecutionType, OrderInfo, OrderOptions, OrderRole,
+    OrderSide, OrderStatus, Price, UserOrder,
 };
 use mmb_domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
 use mmb_utils::DateTime;
@@ -311,44 +311,45 @@ impl Bitmex {
         &self,
         order: &OrderRef,
     ) -> Result<RestResponse, ExchangeError> {
-        let (header, stop_loss_price, mut trailing_stop_delta) = order.fn_ref(|order| {
-            (
-                order.header.clone(),
-                order.props.stop_loss_price,
-                order.props.trailing_stop_delta,
-            )
-        });
+        let header = order.header();
         let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
 
         let mut builder = UriBuilder::from_path("/api/v1/order");
         builder.add_kv("symbol", specific_currency_pair);
-        builder.add_kv("side", header.side.as_str());
+        builder.add_kv("side", header.side);
         builder.add_kv("orderQty", header.amount);
         builder.add_kv("clOrdID", header.client_order_id.as_str());
 
-        match header.order_type {
-            OrderType::Market => builder.add_kv("ordType", "Market"),
-            OrderType::Limit => {
-                builder.add_kv("ordType", "Limit");
-                let price = header.source_price.with_context(|| format!("Order {} has no price specified. Price should be set for Limit orders on Bitmex", header.client_order_id))?;
-                builder.add_kv("price", price);
-                if header.execution_type == OrderExecutionType::MakerOnly {
-                    builder.add_kv("execInst", "ParticipateDoNotInitiate");
+        match header.options {
+            OrderOptions::User(user_order) => match user_order {
+                UserOrder::Limit {
+                    price,
+                    execution_type,
+                } => {
+                    builder.add_kv("ordType", "Limit");
+                    builder.add_kv("price", price);
+                    if execution_type == OrderExecutionType::MakerOnly {
+                        builder.add_kv("execInst", "ParticipateDoNotInitiate");
+                    }
                 }
-            }
-            OrderType::StopLoss => {
-                builder.add_kv("ordType", "Stop");
-                builder.add_kv("stopPx", stop_loss_price);
-            }
-            OrderType::TrailingStop => {
-                builder.add_kv("ordType", "Stop");
-                builder.add_kv("pegPriceType", "TrailingStopPeg");
-                if header.side == OrderSide::Sell {
-                    trailing_stop_delta.set_sign_negative(true);
+                UserOrder::Market => builder.add_kv("ordType", "Market"),
+                UserOrder::StopLoss { stop_price } => {
+                    builder.add_kv("ordType", "Stop");
+                    builder.add_kv("stopPx", stop_price);
                 }
-                builder.add_kv("pegOffsetValue", trailing_stop_delta);
-            }
-            OrderType::ClosePosition => {
+                UserOrder::TrailingStop {
+                    mut trailing_delta, ..
+                } => {
+                    builder.add_kv("ordType", "Stop");
+                    builder.add_kv("pegPriceType", "TrailingStopPeg");
+                    if header.side == OrderSide::Sell {
+                        trailing_delta.set_sign_negative(true);
+                    }
+                    builder.add_kv("pegOffsetValue", trailing_delta);
+                }
+            },
+            // a little internal hack to not make additional variant in UserOrder enum
+            OrderOptions::External(ExternalOrder::ClosePosition { .. }) => {
                 // It will cancel other active limit orders with the same side and symbol if the open quantity exceeds the current position
                 // Details: https://www.bitmex.com/api/explorer/#!/Order/Order_new
                 builder.add_kv("ordType", "Close");

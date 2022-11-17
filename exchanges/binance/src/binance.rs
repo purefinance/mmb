@@ -579,10 +579,8 @@ impl Binance {
         &self,
         order: &OrderRef,
     ) -> Result<RestResponse, ExchangeError> {
-        let (currency_pair, client_order_id) =
-            order.fn_ref(|x| (x.currency_pair(), x.client_order_id()));
-
-        let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
+        let client_order_id = order.client_order_id();
+        let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
 
         let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
         let mut builder = UriBuilder::from_path(path);
@@ -900,21 +898,66 @@ impl Binance {
         let mut builder = UriBuilder::from_path(path);
         builder.add_kv("symbol", specific_currency_pair);
         builder.add_kv("side", get_server_order_side(header.side));
-        builder.add_kv("type", get_server_order_type(&header, is_margin_trading));
         builder.add_kv("quantity", header.amount);
         builder.add_kv("newClientOrderId", &header.client_order_id);
 
-        if header.order_type != OrderType::Market {
-            let price = header.source_price.with_context(|| format!("Order {} has no price specified. Price should be set for all orders except Market on Binance", header.client_order_id))?;
-            builder.add_kv("price", price);
-        }
+        match (is_margin_trading, &header.options) {
+            (false, OrderOptions::User(user_order)) => match user_order {
+                UserOrder::Limit {
+                    price,
+                    execution_type,
+                } => {
+                    match execution_type {
+                        OrderExecutionType::None => {
+                            builder.add_kv("type", "LIMIT");
+                            builder.add_kv("timeInForce", "GTC");
+                        }
+                        OrderExecutionType::MakerOnly => builder.add_kv("type", "LIMIT_MAKER"),
+                    }
+                    builder.add_kv("price", price);
+                }
+                UserOrder::Market => builder.add_kv("type", "MARKET"),
+                UserOrder::StopLoss { stop_price } => {
+                    builder.add_kv("type", "STOP_LOSS");
+                    builder.add_kv("stopPrice", stop_price);
+                    builder.add_kv("timeInForce", "GTC");
+                }
+                UserOrder::TrailingStop {
+                    trailing_delta,
+                    stop_price,
+                } => {
+                    builder.add_kv("type", "STOP_LOSS");
+                    builder.add_kv("trailingDelta", trailing_delta);
+                    builder.add_kv("timeInForce", "GTC");
 
-        if header.order_type != OrderType::Market
-            && header.execution_type != OrderExecutionType::MakerOnly
-        {
-            builder.add_kv("timeInForce", "GTC");
-        } else if header.execution_type == OrderExecutionType::MakerOnly && is_margin_trading {
-            builder.add_kv("timeInForce", "GTX");
+                    if let Some(stop_price) = stop_price {
+                        builder.add_kv("stopPrice", stop_price)
+                    }
+                }
+            },
+            (true, OrderOptions::User(user_order)) => match user_order {
+                UserOrder::Limit {
+                    price,
+                    execution_type,
+                } => {
+                    builder.add_kv("type", "LIMIT");
+                    builder.add_kv("price", price);
+                    match *execution_type == OrderExecutionType::MakerOnly {
+                        true => builder.add_kv("timeInForce", "GTX"),
+                        false => builder.add_kv("timeInForce", "GTC"),
+                    }
+                }
+                UserOrder::Market => builder.add_kv("type", "MARKET"),
+                UserOrder::StopLoss { stop_price } => {
+                    builder.add_kv("type", "STOP_MARKET");
+                    builder.add_kv("stopPrice", stop_price);
+                    builder.add_kv("timeInForce", "GTC");
+                }
+                UserOrder::TrailingStop { .. } => {
+                    unimplemented!("Trailing stop order not implemented for futures now.")
+                }
+            },
+            _ => return Err(ExchangeError::unknown("Unexpected order type")),
         }
 
         self.add_authentification(&mut builder);
@@ -1119,18 +1162,6 @@ fn get_local_order_status(status: &str) -> OrderStatus {
         "PENDING_CANCEL" => OrderStatus::Canceling,
         "CANCELED" | "EXPIRED" | "REJECTED" => OrderStatus::Canceled,
         _ => panic!("Unexpected order status"),
-    }
-}
-
-pub(super) fn get_server_order_type(header: &OrderHeader, is_margin_trading: bool) -> &'static str {
-    if header.execution_type == OrderExecutionType::MakerOnly && !is_margin_trading {
-        return "LIMIT_MAKER";
-    }
-
-    match header.order_type {
-        OrderType::Limit => "LIMIT",
-        OrderType::Market => "MARKET",
-        unexpected_variant => panic!("{unexpected_variant:?} are not expected"),
     }
 }
 

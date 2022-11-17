@@ -82,12 +82,13 @@ impl Exchange {
 
     fn update_local_order(
         &self,
-        order_ref: &OrderRef,
+        order: &OrderRef,
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
         exchange_order_id: &ExchangeOrderId,
     ) {
-        let (status, client_order_id) = order_ref.fn_ref(|x| (x.status(), x.client_order_id()));
+        let client_order_id = order.client_order_id();
+        let status = order.status();
 
         if self.order_already_closed(status, &client_order_id, exchange_order_id) {
             log::trace!("handle_cancel_order_succeeded order_already_closed {status:?}, {client_order_id}, {exchange_order_id:?}");
@@ -98,11 +99,11 @@ impl Exchange {
             // TODO some metrics
         }
 
-        let is_canceling_from_wait_cancel_order = order_ref.fn_mut(|order| {
-            order.set_status(OrderStatus::Canceled, Utc::now());
-            order.internal_props.filled_amount_after_cancellation = filled_amount;
-            order.internal_props.cancellation_event_source_type = Some(source_type);
-            order.internal_props.is_canceling_from_wait_cancel_order
+        let is_canceling_from_wait_cancel_order = order.fn_mut(|x| {
+            x.set_status(OrderStatus::Canceled, Utc::now());
+            x.internal_props.filled_amount_after_cancellation = filled_amount;
+            x.internal_props.cancellation_event_source_type = Some(source_type);
+            x.internal_props.is_canceling_from_wait_cancel_order
         });
 
         // Here we cover the situation with MakerOnly orders
@@ -116,9 +117,9 @@ impl Exchange {
             // and we can Add CancelOrderSucceeded event here (outside WaitCancelOrder) and later from WaitCancelOrder as
             // when we check order.WasFinished in the beginning on WaitCancelOrder, the status is not set to Canceled yet
             // To avoid this situation we set CanceledNotFromWaitCancelOrder to true and then don't raise an event in WaitCancelOrder for the 2nd time
-            order_ref.fn_mut(|x| x.internal_props.canceled_not_from_wait_cancel_order = true);
+            order.fn_mut(|x| x.internal_props.canceled_not_from_wait_cancel_order = true);
 
-            self.add_event_on_order_change(order_ref, OrderEventType::CancelOrderSucceeded)
+            self.add_event_on_order_change(order, OrderEventType::CancelOrderSucceeded)
                 .with_expect(|| format!("Failed to add event CancelOrderSucceeded on order change {client_order_id}"));
         }
 
@@ -128,7 +129,7 @@ impl Exchange {
         );
 
         self.event_recorder
-            .save(order_ref.clone())
+            .save(&mut order.deep_clone())
             .expect("Failure save order");
     }
 }

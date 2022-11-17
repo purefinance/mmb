@@ -20,7 +20,6 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::time::ToStdExpected;
 use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
 use std::borrow::Cow;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::{sleep, timeout};
@@ -50,7 +49,7 @@ impl CreateOrderResult {
 impl Exchange {
     pub async fn create_order(
         &self,
-        order_header: Arc<OrderHeader>,
+        order_header: &OrderHeader,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
@@ -59,7 +58,7 @@ impl Exchange {
         log::info!("Submitting order {order_header:?}");
 
         let order = self.orders.add_simple_initial(
-            order_header.clone(),
+            order_header,
             time_manager::now(),
             self.exchange_client.get_initial_extension_data(),
         );
@@ -203,21 +202,20 @@ impl Exchange {
                 .await?;
         }
 
-        let (status, client_order_id) = order.fn_ref(|o| (o.status(), o.client_order_id()));
+        let client_order_id = order.client_order_id();
 
-        if status == OrderStatus::Creating {
+        if order.status() == OrderStatus::Creating {
             log::error!("OrderStatus of order {client_order_id} is Creating at the end of create order procedure");
         }
 
         self.event_recorder
-            .save(order.clone())
+            .save(&mut order.deep_clone())
             .expect("Failure save order");
 
-        let (header, exchange_order_id) =
-            order.fn_ref(|o| (o.header.clone(), o.props.exchange_order_id.clone()));
-
+        let header = order.header();
         log::info!(
-            "Order was submitted {client_order_id} {exchange_order_id:?} {:?} on {}",
+            "Order was submitted {client_order_id} {:?} {:?} on {}",
+            order.exchange_order_id(),
             header.reservation_id,
             header.exchange_account_id,
         );
@@ -276,9 +274,9 @@ impl Exchange {
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) {
+        let client_order_id = order.client_order_id();
         while !cancellation_token.is_cancellation_requested() {
-            let (status, client_order_id, exchange_order_id) =
-                order.fn_ref(|o| (o.status(), o.client_order_id(), o.exchange_order_id()));
+            let (status, exchange_order_id) = order.fn_ref(|o| (o.status(), o.exchange_order_id()));
 
             if status != OrderStatus::Creating {
                 return;
@@ -307,7 +305,7 @@ impl Exchange {
 
                 let order_info_res = self.get_order_info(&order).await;
 
-                let (status, client_order_id) = order.fn_ref(|o| (o.status(), o.client_order_id()));
+                let status = order.status();
 
                 //In case order's status has changed while we were receiving OrderInfo
                 if status != OrderStatus::Creating {
@@ -377,8 +375,8 @@ impl Exchange {
 
         match get_order_info_error.error_type {
             ExchangeErrorType::OrderNotFound => {
-                let (client_order_id, init_time) =
-                    order.fn_ref(|o| (o.client_order_id(), o.init_time()));
+                let client_order_id = order.client_order_id();
+                let init_time = order.fn_ref(|o| o.init_time());
 
                 let now = time_manager::now();
                 let min_timeout_for_failed_to_create_order = chrono::Duration::minutes(1);
@@ -558,12 +556,12 @@ impl Exchange {
 
     fn react_on_status_when_failed(
         &self,
-        order_ref: &OrderRef,
+        order: &OrderRef,
         args_to_log: (ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
         _source_type: EventSourceType,
         exchange_error: &ExchangeError,
     ) -> Result<()> {
-        let status = order_ref.status();
+        let status = order.status();
         match status {
             OrderStatus::Created
             | OrderStatus::Canceling
@@ -584,17 +582,16 @@ impl Exchange {
             OrderStatus::Creating => {
                 // TODO RestFallback and some metrics
 
-                order_ref.fn_mut(|order| {
-                    order.set_status(OrderStatus::FailedToCreate, Utc::now());
-                    order.internal_props.last_creation_error_type = Some(exchange_error.error_type);
-                    order.internal_props.last_creation_error_message =
-                        exchange_error.message.clone();
+                order.fn_mut(|x| {
+                    x.set_status(OrderStatus::FailedToCreate, Utc::now());
+                    x.internal_props.last_creation_error_type = Some(exchange_error.error_type);
+                    x.internal_props.last_creation_error_message = exchange_error.message.clone();
                 });
 
-                self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderFailed)?;
+                self.add_event_on_order_change(order, OrderEventType::CreateOrderFailed)?;
 
                 self.event_recorder
-                    .save(order_ref.clone())
+                    .save(&mut order.deep_clone())
                     .expect("Failure save order");
 
                 log::error!("Order creation failed {args_to_log:?}: {exchange_error:?}");
@@ -656,11 +653,11 @@ impl Exchange {
 
     fn react_on_status_when_succeed(
         &self,
-        order_ref: &OrderRef,
+        order: &OrderRef,
         args_to_log: (ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
         source_type: EventSourceType,
     ) -> Result<()> {
-        let status = order_ref.status();
+        let status = order.status();
         let exchange_order_id = args_to_log.2;
         match status {
             OrderStatus::FailedToCreate => {
@@ -693,18 +690,18 @@ impl Exchange {
 
                 // TODO RestFallback and some metrics
 
-                order_ref.fn_mut(|order| {
+                order.fn_mut(|order| {
                     order.set_status(OrderStatus::Created, Utc::now());
                     order.internal_props.creation_event_source_type = Some(source_type);
                 });
 
                 self.orders
                     .cache_by_exchange_id
-                    .insert(exchange_order_id.clone(), order_ref.clone());
+                    .insert(exchange_order_id.clone(), order.clone());
 
-                let header = order_ref.fn_ref(|x| x.header.clone());
+                let header = order.header();
                 let client_order_id = header.client_order_id.clone();
-                if order_ref.order_type() != OrderType::Liquidation {
+                if order.order_type() != OrderType::Liquidation {
                     match header.reservation_id {
                         None => {
                             log::warn!("Created order {client_order_id} without reservation_id")
@@ -723,7 +720,7 @@ impl Exchange {
                     };
                 }
 
-                self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
+                self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded)?;
 
                 let mut buffered_fills_manager = self.buffered_fills_manager.lock();
                 if let Some(buffered_fills) = buffered_fills_manager.get_fills(exchange_order_id) {
@@ -756,7 +753,7 @@ impl Exchange {
                 drop(buffered_canceled_orders_manager);
 
                 self.event_recorder
-                    .save(order_ref.clone())
+                    .save(&mut order.deep_clone())
                     .expect("Failure save order");
 
                 log::info!("Order was created: {args_to_log:?}");
@@ -771,8 +768,8 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        let (status, client_order_id, exchange_order_id) =
-            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+        let client_order_id = order.client_order_id();
+        let (status, exchange_order_id) = order.fn_ref(|x| (x.status(), x.exchange_order_id()));
 
         if status != OrderStatus::Creating {
             log::info!("Instantly exiting create_order_created_task because order's status is {status:?} {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);
@@ -786,8 +783,7 @@ impl Exchange {
             .entry(order.client_order_id())
             .or_insert(tx);
 
-        let (status, client_order_id, exchange_order_id) =
-            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+        let (status, exchange_order_id) = order.fn_ref(|x| (x.status(), x.exchange_order_id()));
 
         if status != OrderStatus::Creating {
             log::info!("Exiting create_order_created_task because order's status turned {status:?} while oneshot::channel were creating {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);

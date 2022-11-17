@@ -495,19 +495,18 @@ impl Exchange {
 
     pub(crate) fn add_event_on_order_change(
         &self,
-        order_ref: &OrderRef,
+        order: &OrderRef,
         event_type: OrderEventType,
     ) -> Result<()> {
         if let OrderEventType::CancelOrderSucceeded = event_type {
-            order_ref.fn_mut(|order| order.internal_props.was_cancellation_event_raised = true)
+            order.fn_mut(|order| order.internal_props.was_cancellation_event_raised = true)
         }
 
-        let (status, client_order_id) = order_ref.fn_ref(|x| (x.status(), x.client_order_id()));
-        if status.is_finished() {
-            let _ = self.orders.not_finished.remove(&client_order_id);
+        if order.is_finished() {
+            let _ = self.orders.not_finished.remove(&order.client_order_id());
         }
 
-        let event = ExchangeEvent::OrderEvent(OrderEvent::new(order_ref.clone(), event_type));
+        let event = ExchangeEvent::OrderEvent(OrderEvent::new(order.clone(), event_type));
         self.events_channel
             .send(event)
             .context("Unable to send event. Probably receiver is already dropped")?;

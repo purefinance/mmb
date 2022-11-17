@@ -5,6 +5,7 @@ use crate::order::fill::OrderFill;
 use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
+use mmb_database::impl_event;
 use mmb_utils::{impl_from_for_str_id, DateTime};
 use mmb_utils::{impl_str_id, impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;
@@ -18,7 +19,6 @@ use std::fmt::Write;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use std::vec::Vec;
 use uuid::Uuid;
 
@@ -165,27 +165,132 @@ impl_u64_id!(ReservationId);
 
 pub const CURRENT_ORDER_VERSION: u32 = 1;
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum UserOrder {
+    // Create order with specified price or make taker order if market was crossed with specified price
+    Limit {
+        price: Price,
+        execution_type: OrderExecutionType,
+    },
+    /// Immediately trade taker order by another order side price
+    Market,
+    /// Create market order when triggered stop-loss price
+    StopLoss {
+        /// Price for stop-loss order trigger
+        stop_price: Price,
+    },
+    TrailingStop {
+        trailing_delta: Decimal,
+        stop_price: Option<Price>,
+    },
+}
+
+impl UserOrder {
+    /// Limit order (not maker only)    
+    pub fn limit(price: Price) -> Self {
+        Self::Limit {
+            price,
+            execution_type: OrderExecutionType::None,
+        }
+    }
+
+    /// Limit maker only order
+    pub fn maker_only(price: Price) -> Self {
+        Self::Limit {
+            price,
+            execution_type: OrderExecutionType::MakerOnly,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExternalOrder {
+    Liquidation { price: Price },
+    ClosePosition { price: Price },
+    MissedFill { price: Price },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OrderOptions {
+    Unknown { price: Option<Price> },
+    User(UserOrder),
+    External(ExternalOrder),
+}
+
+impl OrderOptions {
+    /// Limit order (not maker only)    
+    pub fn limit(price: Price) -> Self {
+        Self::User(UserOrder::limit(price))
+    }
+
+    /// Limit maker only order
+    pub fn maker_only(price: Price) -> Self {
+        Self::User(UserOrder::maker_only(price))
+    }
+
+    pub fn unknown(price: Option<Price>) -> Self {
+        Self::Unknown { price }
+    }
+
+    pub fn liquidation(price: Price) -> Self {
+        Self::External(ExternalOrder::Liquidation { price })
+    }
+
+    pub fn close_position(price: Price) -> Self {
+        Self::External(ExternalOrder::ClosePosition { price })
+    }
+
+    pub(crate) fn get_source_price(&self) -> Option<Price> {
+        match self {
+            OrderOptions::User(UserOrder::Limit { price, .. })
+            | OrderOptions::External(ExternalOrder::Liquidation { price })
+            | OrderOptions::External(ExternalOrder::ClosePosition { price })
+            | OrderOptions::External(ExternalOrder::MissedFill { price }) => Some(*price),
+            OrderOptions::Unknown { price } => *price,
+            _ => None,
+        }
+    }
+
+    pub fn get_order_type(&self) -> OrderType {
+        match self {
+            OrderOptions::Unknown { .. } => OrderType::Unknown,
+            OrderOptions::User(UserOrder::Limit { .. }) => OrderType::Limit,
+            OrderOptions::User(UserOrder::Market { .. }) => OrderType::Market,
+            OrderOptions::User(UserOrder::StopLoss { .. }) => OrderType::StopLoss,
+            OrderOptions::User(UserOrder::TrailingStop { .. }) => OrderType::TrailingStop,
+            OrderOptions::External(ExternalOrder::Liquidation { .. }) => OrderType::Liquidation,
+            OrderOptions::External(ExternalOrder::ClosePosition { .. }) => OrderType::ClosePosition,
+            OrderOptions::External(ExternalOrder::MissedFill { .. }) => OrderType::MissedFill,
+        }
+    }
+
+    pub fn execution_type(&self) -> Option<OrderExecutionType> {
+        match self {
+            OrderOptions::User(UserOrder::Limit { execution_type, .. }) => Some(*execution_type),
+            _ => None,
+        }
+    }
+}
+
 /// Immutable part of order
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderHeader {
     pub client_order_id: ClientOrderId,
-
     pub exchange_account_id: ExchangeAccountId,
 
-    // For ClosePosition order currency pair can be empty string
+    // NOTE: For ClosePosition order currency pair can be empty string
     pub currency_pair: CurrencyPair,
 
-    pub order_type: OrderType,
-
     pub side: OrderSide,
+    pub amount: Amount,
+
+    pub options: OrderOptions,
 
     /// Price of order specified by exchange client before order creation.
     /// Price should be specified for `Limit` order and should not be specified for `Market` order.
     /// For other order types it depends on exchange requirements.
     pub source_price: Option<Price>,
-    pub amount: Amount,
-
-    pub execution_type: OrderExecutionType,
+    pub order_type: OrderType,
 
     pub reservation_id: Option<ReservationId>,
 
@@ -195,32 +300,55 @@ pub struct OrderHeader {
 
 impl OrderHeader {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn with_user_order(
         client_order_id: ClientOrderId,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
-        order_type: OrderType,
         side: OrderSide,
-        source_price: Option<Price>,
         amount: Amount,
-        execution_type: OrderExecutionType,
+        user_order: UserOrder,
         reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
         strategy_name: String,
-    ) -> Arc<Self> {
-        Arc::new(Self {
+    ) -> Self {
+        Self::with_options(
             client_order_id,
             exchange_account_id,
             currency_pair,
-            order_type,
             side,
-            source_price,
             amount,
-            execution_type,
+            OrderOptions::User(user_order),
             reservation_id,
             signal_id,
             strategy_name,
-        })
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_options(
+        client_order_id: ClientOrderId,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        side: OrderSide,
+        amount: Amount,
+        options: OrderOptions,
+        reservation_id: Option<ReservationId>,
+        signal_id: Option<String>,
+        strategy_name: String,
+    ) -> Self {
+        Self {
+            client_order_id,
+            exchange_account_id,
+            currency_pair,
+            order_type: options.get_order_type(),
+            source_price: options.get_source_price(),
+            side,
+            amount,
+            options,
+            reservation_id,
+            signal_id,
+            strategy_name,
+        }
     }
 
     pub fn market_account_id(&self) -> MarketAccountId {
@@ -242,18 +370,23 @@ impl OrderHeader {
         self.source_price
             .unwrap_or_else(|| panic!("Cannot get price from order {}", self.client_order_id))
     }
+
+    /// Price of order specified by exchange client before order creation.
+    /// Price should be specified for `Limit` order and should not be specified for `Market` order.
+    /// For other order types it depends on exchange requirements.
+    pub fn source_price(&self) -> Option<Price> {
+        self.source_price
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
     pub init_time: DateTime,
-    pub role: Option<OrderRole>,
     pub exchange_order_id: Option<ExchangeOrderId>,
-    pub stop_loss_price: Decimal,
-    pub trailing_stop_delta: Decimal,
 
     pub status: OrderStatus,
 
+    pub role: Option<OrderRole>,
     pub finished_time: Option<DateTime>,
 }
 
@@ -263,8 +396,6 @@ impl OrderSimpleProps {
         init_time: DateTime,
         role: Option<OrderRole>,
         exchange_order_id: Option<ExchangeOrderId>,
-        stop_loss_price: Decimal,
-        trailing_stop_delta: Decimal,
         status: OrderStatus,
         finished_time: Option<DateTime>,
     ) -> Self {
@@ -272,8 +403,6 @@ impl OrderSimpleProps {
             init_time,
             role,
             exchange_order_id,
-            stop_loss_price,
-            trailing_stop_delta,
             status,
             finished_time,
         }
@@ -284,9 +413,7 @@ impl OrderSimpleProps {
             init_time,
             role: None,
             exchange_order_id: None,
-            stop_loss_price: Default::default(),
-            trailing_stop_delta: Default::default(),
-            status: Default::default(),
+            status: OrderStatus::default(),
             finished_time: None,
         }
     }
@@ -314,7 +441,7 @@ impl From<OrderRole> for OrderFillRole {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrderFills {
     pub fills: Vec<OrderFill>,
-    pub filled_amount: Decimal,
+    pub filled_amount: Amount,
 }
 
 impl OrderFills {
@@ -476,9 +603,10 @@ impl OrderInfo {
     }
 }
 
+/// Mutable part of order
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OrderSnapshot {
-    pub header: Arc<OrderHeader>,
+#[non_exhaustive]
+pub struct OrderMut {
     pub props: OrderSimpleProps,
     pub fills: OrderFills,
     pub status_history: OrderStatusHistory,
@@ -486,15 +614,52 @@ pub struct OrderSnapshot {
     pub extension_data: Option<Box<dyn OrderInfoExtensionData>>,
 }
 
-impl OrderSnapshot {
-    pub fn side(&self) -> OrderSide {
-        self.header.side
+impl OrderMut {
+    pub fn add_fill(&mut self, fill: OrderFill) {
+        self.fills.filled_amount += fill.amount();
+        self.fills.fills.push(fill);
+    }
+
+    pub fn status(&self) -> OrderStatus {
+        self.props.status
+    }
+
+    pub fn set_status(&mut self, new_status: OrderStatus, time: DateTime) {
+        set_status(&mut self.props, &mut self.status_history, new_status, time);
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.props.is_finished()
+    }
+
+    pub fn filled_amount(&self) -> Amount {
+        self.fills.filled_amount
+    }
+
+    pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
+        self.props.exchange_order_id.clone()
+    }
+
+    pub fn init_time(&self) -> DateTime {
+        self.props.init_time
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderSnapshot {
+    pub header: OrderHeader,
+    pub props: OrderSimpleProps,
+    pub fills: OrderFills,
+    pub status_history: OrderStatusHistory,
+    pub internal_props: SystemInternalOrderProps,
+    pub extension_data: Option<Box<dyn OrderInfoExtensionData>>,
+}
+
+impl_event!(&mut OrderSnapshot, "orders");
+
 impl OrderSnapshot {
     pub fn new(
-        header: Arc<OrderHeader>,
+        header: OrderHeader,
         props: OrderSimpleProps,
         fills: OrderFills,
         status_history: OrderStatusHistory,
@@ -514,25 +679,22 @@ impl OrderSnapshot {
     #[allow(clippy::too_many_arguments)]
     pub fn with_params(
         client_order_id: ClientOrderId,
-        order_type: OrderType,
+        options: OrderOptions,
         order_role: Option<OrderRole>,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
-        source_price: Option<Price>,
         amount: Amount,
         order_side: OrderSide,
         reservation_id: Option<ReservationId>,
         strategy_name: &str,
     ) -> Self {
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_options(
             client_order_id,
             exchange_account_id,
             currency_pair,
-            order_type,
             order_side,
-            source_price,
             amount,
-            OrderExecutionType::None,
+            options,
             reservation_id,
             None,
             strategy_name.to_owned(),
@@ -541,58 +703,14 @@ impl OrderSnapshot {
         let mut props = OrderSimpleProps::from_init_time(Utc::now());
         props.role = order_role;
 
-        Self::new(
+        Self {
             header,
             props,
-            OrderFills::default(),
-            OrderStatusHistory::default(),
-            SystemInternalOrderProps::default(),
-            None,
-        )
-    }
-
-    pub fn add_fill(&mut self, fill: OrderFill) {
-        self.fills.filled_amount += fill.amount();
-        self.fills.fills.push(fill);
-    }
-
-    pub fn status(&self) -> OrderStatus {
-        self.props.status
-    }
-
-    pub fn set_status(&mut self, new_status: OrderStatus, time: DateTime) {
-        self.props.status = new_status;
-        if new_status.is_finished() {
-            self.props.finished_time = Some(time);
+            fills: OrderFills::default(),
+            status_history: OrderStatusHistory::default(),
+            internal_props: SystemInternalOrderProps::default(),
+            extension_data: None,
         }
-        self.status_history.status_changes.push(OrderStatusChange {
-            id: Uuid::default(),
-            status: new_status,
-            time,
-        })
-    }
-
-    pub fn is_finished(&self) -> bool {
-        self.props.is_finished()
-    }
-
-    /// NOTE: Should be used only in cases when we sure that price specified
-    pub fn price(&self) -> Price {
-        self.header.price()
-    }
-
-    /// Price of order specified by exchange client before order creation.
-    /// Price should be specified for `Limit` order and should not be specified for `Market` order.
-    /// For other order types it depends on exchange requirements.
-    pub fn source_price(&self) -> Option<Price> {
-        self.header.source_price
-    }
-
-    pub fn amount(&self) -> Amount {
-        self.header.amount
-    }
-    pub fn filled_amount(&self) -> Amount {
-        self.fills.filled_amount
     }
 
     pub fn market_account_id(&self) -> MarketAccountId {
@@ -607,16 +725,36 @@ impl OrderSnapshot {
         self.header.client_order_id.clone()
     }
 
-    pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
-        self.props.exchange_order_id.clone()
-    }
-
     pub fn currency_pair(&self) -> CurrencyPair {
         self.header.currency_pair
     }
 
-    pub fn init_time(&self) -> DateTime {
-        self.props.init_time
+    pub fn side(&self) -> OrderSide {
+        self.header.side
+    }
+
+    /// NOTE: Should be used only in cases when we sure that price specified
+    pub fn price(&self) -> Price {
+        self.header
+            .source_price
+            .unwrap_or_else(|| panic!("Cannot get price from order {}", self.client_order_id()))
+    }
+
+    pub fn amount(&self) -> Amount {
+        self.header.amount
+    }
+
+    pub fn status(&self) -> OrderStatus {
+        self.props.status
+    }
+
+    pub fn add_fill(&mut self, fill: OrderFill) {
+        self.fills.filled_amount += fill.amount();
+        self.fills.fills.push(fill);
+    }
+
+    pub fn set_status(&mut self, new_status: OrderStatus, time: DateTime) {
+        set_status(&mut self.props, &mut self.status_history, new_status, time);
     }
 }
 
@@ -636,4 +774,21 @@ impl Display for PriceByOrderSide {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "ask {:?}, bid {:?}", self.top_ask, self.top_bid)
     }
+}
+
+fn set_status(
+    props: &mut OrderSimpleProps,
+    status_history: &mut OrderStatusHistory,
+    new_status: OrderStatus,
+    time: DateTime,
+) {
+    props.status = new_status;
+    if new_status.is_finished() {
+        props.finished_time = Some(time);
+    }
+    status_history.status_changes.push(OrderStatusChange {
+        id: Uuid::default(),
+        status: new_status,
+        time,
+    })
 }

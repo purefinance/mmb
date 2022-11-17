@@ -2,61 +2,106 @@ use crate::market::CurrencyPair;
 use crate::market::ExchangeAccountId;
 use crate::order::fill::OrderFill;
 use crate::order::snapshot::{
-    Amount, ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderSimpleProps,
-    OrderSnapshot, OrderStatus,
+    Amount, ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderMut,
+    OrderSimpleProps, OrderSnapshot, OrderStatus, Price,
 };
 use crate::order::snapshot::{OrderRole, OrderSide, OrderType};
 use dashmap::DashMap;
-use mmb_database::impl_event;
 use mmb_utils::DateTime;
 use parking_lot::RwLock;
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct OrderRef(Arc<RwLock<OrderSnapshot>>);
+pub struct OrderRefData {
+    header: OrderHeader,
+    data: RwLock<OrderMut>,
+}
 
-impl_event!(OrderRef, "orders");
-
-impl PartialEq for OrderRef {
-    fn eq(&self, other: &Self) -> bool {
-        // Active OrderRef should point to the same OrderSnapshot
-        Arc::ptr_eq(&self.0, &other.0)
+impl Debug for OrderRefData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "header: {:?} data: {:?}", self.header, self.data)
     }
 }
 
-impl Debug for OrderRef {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0.read())
+#[derive(Clone, Debug)]
+pub struct OrderRef {
+    inner: Arc<OrderRefData>,
+}
+
+impl PartialEq for OrderRef {
+    fn eq(&self, other: &Self) -> bool {
+        // Active OrderRef should point to the same OrderRefData
+        Arc::ptr_eq(&self.inner, &other.inner)
     }
 }
 
 impl OrderRef {
-    /// Lock order for read and provide copy properties or check some conditions
-    pub fn fn_ref<T: 'static>(&self, f: impl FnOnce(&OrderSnapshot) -> T) -> T {
-        f(self.0.read().borrow())
+    fn from_snapshot(snapshot: &OrderSnapshot) -> Self {
+        Self {
+            inner: Arc::new(OrderRefData {
+                header: snapshot.header.clone(),
+                data: RwLock::new(OrderMut {
+                    props: snapshot.props.clone(),
+                    fills: snapshot.fills.clone(),
+                    status_history: snapshot.status_history.clone(),
+                    internal_props: snapshot.internal_props.clone(),
+                    extension_data: snapshot.extension_data.clone(),
+                }),
+            }),
+        }
     }
 
-    /// Lock order for write and provide mutate state of order
-    pub fn fn_mut<T: 'static>(&self, f: impl FnOnce(&mut OrderSnapshot) -> T) -> T {
-        f(self.0.write().borrow_mut())
+    pub fn header(&self) -> &OrderHeader {
+        &self.inner.header
     }
 
-    pub fn header(&self) -> Arc<OrderHeader> {
-        self.fn_ref(|x| x.header.clone())
+    pub fn exchange_account_id(&self) -> ExchangeAccountId {
+        self.header().exchange_account_id
+    }
+
+    pub fn currency_pair(&self) -> CurrencyPair {
+        self.header().currency_pair
+    }
+
+    pub fn client_order_id(&self) -> ClientOrderId {
+        self.header().client_order_id.clone()
+    }
+
+    pub fn side(&self) -> OrderSide {
+        self.header().side
     }
 
     /// NOTE: Should be used only in cases when we sure that price specified
-    pub fn price(&self) -> Decimal {
-        self.fn_ref(|x| x.price())
+    pub fn price(&self) -> Price {
+        self.header().price()
     }
-    pub fn amount(&self) -> Decimal {
-        self.fn_ref(|x| x.header.amount)
+
+    /// Price of order specified by exchange client before order creation.
+    /// Price should be specified for `Limit` order and should not be specified for `Market` order.
+    /// For other order types it depends on exchange requirements.
+    pub fn source_price(&self) -> Option<Price> {
+        self.header().source_price
     }
+
+    pub fn amount(&self) -> Amount {
+        self.header().amount
+    }
+
+    pub fn order_type(&self) -> OrderType {
+        self.header().order_type
+    }
+
+    /// Lock order for read and provide copy mutable properties or check some conditions
+    pub fn fn_ref<T: 'static>(&self, f: impl FnOnce(&OrderMut) -> T) -> T {
+        f(self.inner.data.read().borrow())
+    }
+
+    /// Lock order for write and provide mutate state of order
+    pub fn fn_mut<T: 'static>(&self, f: impl FnOnce(&mut OrderMut) -> T) -> T {
+        f(self.inner.data.write().borrow_mut())
+    }
+
     pub fn status(&self) -> OrderStatus {
         self.fn_ref(|x| x.status())
     }
@@ -72,28 +117,20 @@ impl OrderRef {
     pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
         self.fn_ref(|x| x.exchange_order_id())
     }
-    pub fn client_order_id(&self) -> ClientOrderId {
-        self.fn_ref(|x| x.client_order_id())
-    }
     pub fn order_ids(&self) -> (ClientOrderId, Option<ExchangeOrderId>) {
-        self.fn_ref(|x| (x.client_order_id(), x.exchange_order_id()))
-    }
-
-    pub fn exchange_account_id(&self) -> ExchangeAccountId {
-        self.fn_ref(|x| x.header.exchange_account_id)
-    }
-    pub fn order_type(&self) -> OrderType {
-        self.fn_ref(|x| x.header.order_type)
-    }
-    pub fn currency_pair(&self) -> CurrencyPair {
-        self.fn_ref(|x| x.currency_pair())
-    }
-    pub fn side(&self) -> OrderSide {
-        self.fn_ref(|x| x.header.side)
+        let client_order_id = self.client_order_id();
+        (client_order_id, self.fn_ref(|x| x.exchange_order_id()))
     }
 
     pub fn deep_clone(&self) -> OrderSnapshot {
-        self.fn_ref(|order| order.clone())
+        self.fn_ref(|order| OrderSnapshot {
+            header: self.header().clone(),
+            props: order.props.clone(),
+            fills: order.fills.clone(),
+            status_history: order.status_history.clone(),
+            internal_props: order.internal_props.clone(),
+            extension_data: order.extension_data.clone(),
+        })
     }
 
     pub fn filled_amount(&self) -> Amount {
@@ -123,10 +160,11 @@ impl OrdersPool {
         })
     }
 
-    /// Insert specified `OrderSnapshot` in order pool.
-    pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) -> OrderRef {
-        let client_order_id = snapshot.read().header.client_order_id.clone();
-        let order_ref = OrderRef(snapshot);
+    /// Built `OrderRef` by specified `OrderSnapshot` and Insert it in order pool.
+    pub fn add_snapshot_initial(&self, snapshot: &OrderSnapshot) -> OrderRef {
+        let client_order_id = snapshot.header.client_order_id.clone();
+
+        let order_ref = OrderRef::from_snapshot(snapshot);
         let _ = self
             .cache_by_client_id
             .insert(client_order_id.clone(), order_ref.clone());
@@ -135,29 +173,39 @@ impl OrdersPool {
         order_ref
     }
 
-    /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
+    /// Create `OrderRef` by specified `OrderHeader` with default other properties and insert it in order pool.
     pub fn add_simple_initial(
         &self,
-        header: Arc<OrderHeader>,
+        header: &OrderHeader,
         init_time: DateTime,
         extension_data: Option<Box<dyn OrderInfoExtensionData>>,
     ) -> OrderRef {
         match self.cache_by_client_id.get(&header.client_order_id) {
             None => {
-                let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-                    props: OrderSimpleProps::from_init_time(init_time),
-                    header,
-                    fills: Default::default(),
-                    status_history: Default::default(),
-                    internal_props: Default::default(),
-                    extension_data,
-                }));
+                let order = OrderRef {
+                    inner: Arc::new(OrderRefData {
+                        header: header.clone(),
+                        data: RwLock::new(OrderMut {
+                            props: OrderSimpleProps::from_init_time(init_time),
+                            fills: Default::default(),
+                            status_history: Default::default(),
+                            internal_props: Default::default(),
+                            extension_data,
+                        }),
+                    }),
+                };
 
-                self.add_snapshot_initial(snapshot)
+                let client_order_id = header.client_order_id.clone();
+                let _ = self
+                    .cache_by_client_id
+                    .insert(client_order_id.clone(), order.clone());
+                let _ = self.not_finished.insert(client_order_id, order.clone());
+
+                order
             }
-            Some(order_ref) => {
-                order_ref.fn_mut(|x| x.props.init_time = init_time);
-                order_ref.clone()
+            Some(order) => {
+                order.fn_mut(|x| x.props.init_time = init_time);
+                order.clone()
             }
         }
     }

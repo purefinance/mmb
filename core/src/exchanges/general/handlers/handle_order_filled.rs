@@ -11,13 +11,12 @@ use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 use mmb_domain::order::event::OrderEventType;
 use mmb_domain::order::fill::{OrderFill, OrderFillType};
 use mmb_domain::order::pool::OrderRef;
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, OrderOptions, Price};
 use mmb_domain::order::snapshot::{ClientOrderFillId, OrderRole};
 use mmb_domain::order::snapshot::{
-    ClientOrderId, ExchangeOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType,
+    ClientOrderId, ExchangeOrderId, OrderSide, OrderSnapshot, OrderStatus,
 };
 use mmb_utils::DateTime;
-use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
@@ -448,13 +447,13 @@ impl Exchange {
         }
     }
 
-    fn panic_if_fill_amounts_conformity(&self, order_filled_amount: Amount, order_ref: &OrderRef) {
-        let (amount, client_order_id, exchange_order_id) =
-            order_ref.fn_ref(|x| (x.header.amount, x.client_order_id(), x.exchange_order_id()));
-
+    fn panic_if_fill_amounts_conformity(&self, order_filled_amount: Amount, order: &OrderRef) {
+        let amount = order.amount();
         if order_filled_amount > amount {
             panic!(
-                "filled_amount {order_filled_amount} > order.amount {amount} for {client_order_id} {exchange_order_id:?} on {}",
+                "filled_amount {order_filled_amount} > order.amount {amount} for {} {:?} on {}",
+                order.client_order_id(),
+                order.exchange_order_id(),
                 self.exchange_account_id,
             )
         }
@@ -513,13 +512,9 @@ impl Exchange {
 
         let rounded_fill_price = symbol.price_round(last_fill_price, Round::ToNearest);
 
-        let (client_order_id, exchange_order_id, side) = order_ref.fn_ref(|order| {
-            (
-                order.header.client_order_id.clone(),
-                order.props.exchange_order_id.clone(),
-                order.header.side,
-            )
-        });
+        let client_order_id = order_ref.client_order_id();
+        let side = order_ref.side();
+        let exchange_order_id = order_ref.exchange_order_id();
 
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
@@ -660,7 +655,7 @@ impl Exchange {
         }
 
         self.event_recorder
-            .save(order_ref.clone())
+            .save(&mut order_ref.deep_clone())
             .expect("Failure save order");
     }
 
@@ -694,23 +689,19 @@ impl Exchange {
         {
             Some(order_ref) => fill_event.client_order_id = Some(order_ref.client_order_id()),
             None => {
-                let order_type = match fill_event.fill_type == OrderFillType::ClosePosition {
-                    true => OrderType::ClosePosition,
-                    false => OrderType::Liquidation,
+                let order_options = match fill_event.fill_type == OrderFillType::ClosePosition {
+                    true => OrderOptions::close_position(fill_event.fill_price),
+                    false => OrderOptions::liquidation(fill_event.fill_price),
                 };
 
                 // Liquidation and ClosePosition are always Takers
-                let order_ref = self.create_special_order_in_pool(
-                    special,
-                    fill_event.fill_price,
-                    order_type,
-                    OrderRole::Taker,
-                );
+                let order =
+                    self.create_special_order_in_pool(special, order_options, OrderRole::Taker);
 
-                fill_event.client_order_id = Some(order_ref.client_order_id());
+                fill_event.client_order_id = Some(order.client_order_id());
                 self.handle_create_order_succeeded(
                     self.exchange_account_id,
-                    &order_ref.client_order_id(),
+                    &order.client_order_id(),
                     &fill_event.exchange_order_id,
                     fill_event.source_type,
                 )
@@ -723,48 +714,45 @@ impl Exchange {
     fn create_special_order_in_pool(
         &self,
         special: SpecialOrderData,
-        fill_price: Price,
-        order_type: OrderType,
+        options: OrderOptions,
         order_role: OrderRole,
     ) -> OrderRef {
         let order_instance = OrderSnapshot::with_params(
             ClientOrderId::unique_id(),
-            order_type,
+            options,
             Some(order_role),
             self.exchange_account_id,
             special.currency_pair,
-            Some(fill_price),
             special.order_amount,
             special.order_side,
             None,
             "Unknown order from handle_order_filled()",
         );
 
-        self.orders
-            .add_snapshot_initial(Arc::new(RwLock::new(order_instance)))
+        self.orders.add_snapshot_initial(&order_instance)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use anyhow::{Context, Result};
-    use chrono::Utc;
-    use mmb_domain::market::CurrencyCode;
-    use mmb_domain::order::fill::OrderFill;
-    use mmb_domain::order::pool::OrdersPool;
-    use mmb_domain::order::snapshot::{
-        OrderExecutionType, OrderFillRole, OrderFills, OrderHeader, OrderSimpleProps,
-        OrderStatusHistory, SystemInternalOrderProps,
-    };
-    use serde_json::json;
-    use uuid::Uuid;
-
     use super::*;
     use crate::{
         exchanges::general::exchange::OrderBookTop, exchanges::general::exchange::PriceLevel,
         exchanges::general::test_helper, exchanges::general::test_helper::create_order_ref,
         exchanges::general::test_helper::get_test_exchange,
     };
+    use anyhow::{Context, Result};
+    use chrono::Utc;
+    use mmb_domain::market::CurrencyCode;
+    use mmb_domain::order::fill::OrderFill;
+    use mmb_domain::order::pool::OrdersPool;
+    use mmb_domain::order::snapshot::{
+        OrderFillRole, OrderFills, OrderHeader, OrderSimpleProps, OrderStatusHistory,
+        SystemInternalOrderProps,
+    };
+    use mmb_domain::order::snapshot::{OrderType, UserOrder};
+    use serde_json::json;
+    use uuid::Uuid;
 
     fn trade_id_from_str(str: &str) -> TradeId {
         json!(str).into()
@@ -949,11 +937,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -983,7 +970,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -1030,11 +1017,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -1064,7 +1050,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -1109,11 +1095,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -1143,7 +1128,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -1189,11 +1174,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -1223,7 +1207,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -1269,11 +1253,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -1282,7 +1265,7 @@ mod test {
         order.set_status(OrderStatus::FailedToCreate, Utc::now());
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
     }
@@ -1325,11 +1308,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -1338,7 +1320,7 @@ mod test {
         order.set_status(OrderStatus::Completed, Utc::now());
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
     }
@@ -1381,11 +1363,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -1394,7 +1375,7 @@ mod test {
         order.internal_props.was_cancellation_event_raised = true;
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -1420,15 +1401,13 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -1437,8 +1416,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             Default::default(),
             None,
         );
@@ -1452,7 +1429,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let mut first_fill_event = FillEvent {
@@ -1538,15 +1515,13 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Sell,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -1555,8 +1530,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             Default::default(),
             None,
         );
@@ -1570,7 +1543,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
@@ -1656,15 +1629,13 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -1673,8 +1644,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             Default::default(),
             None,
         );
@@ -1688,7 +1657,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let mut first_fill_event = FillEvent {
@@ -1779,15 +1748,13 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Sell,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -1796,8 +1763,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             Default::default(),
             None,
         );
@@ -1811,7 +1776,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let mut first_fill_event = FillEvent {
@@ -1900,15 +1865,13 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        let header = OrderHeader::new(
+        let header = OrderHeader::with_user_order(
             client_order_id,
             exchange.exchange_account_id,
             currency_pair,
-            OrderType::Limit,
             OrderSide::Sell,
-            Some(order_price),
             order_amount,
-            OrderExecutionType::None,
+            UserOrder::limit(order_price),
             None,
             None,
             "FromTest".to_owned(),
@@ -1917,8 +1880,6 @@ mod test {
             Utc::now(),
             Some(order_role),
             Some(exchange_order_id.clone()),
-            Default::default(),
-            Default::default(),
             Default::default(),
             None,
         );
@@ -1932,7 +1893,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let mut first_fill_event = FillEvent {
@@ -2028,11 +1989,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -2041,7 +2001,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -2086,11 +2046,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_event.fill_price),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_event.fill_price),
             order_amount,
             order_side,
             None,
@@ -2099,7 +2058,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -2148,11 +2107,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2161,7 +2119,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -2211,11 +2169,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             None,
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2224,7 +2181,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         Exchange::get_order_role(&fill_event, &order_ref);
     }
@@ -2267,11 +2224,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2280,7 +2236,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
         let (fills, _) = order_ref.get_fills();
@@ -2331,11 +2287,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2344,7 +2299,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -2395,11 +2350,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2408,7 +2362,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -2468,11 +2422,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2481,7 +2434,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
@@ -2531,11 +2484,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2544,7 +2496,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
         let (fills, _) = order_ref.get_fills();
@@ -2593,11 +2545,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2606,7 +2557,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
         let (fills, _) = order_ref.get_fills();
@@ -2655,11 +2606,10 @@ mod test {
 
         let mut order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(dec!(0.2)),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(dec!(0.2)),
             order_amount,
             order_side,
             None,
@@ -2668,7 +2618,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
         let (fills, _) = order_ref.get_fills();
@@ -3183,11 +3133,10 @@ mod test {
 
         let order = OrderSnapshot::with_params(
             client_order_id,
-            OrderType::Liquidation,
+            OrderOptions::liquidation(fill_price),
             Some(OrderRole::Maker),
             exchange.exchange_account_id,
             currency_pair,
-            Some(fill_price),
             order_amount,
             order_side,
             None,
@@ -3195,7 +3144,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         let fill_amount = FillAmount::Incremental {
             fill_amount: dec!(5),

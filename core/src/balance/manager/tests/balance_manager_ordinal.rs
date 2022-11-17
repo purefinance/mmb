@@ -148,7 +148,7 @@ mod tests {
     use mmb_domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger;
-    use parking_lot::{Mutex, RwLock};
+    use parking_lot::Mutex;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -2156,7 +2156,7 @@ mod tests {
             reservation_id_1,
             reservation_id_2,
             dec!(2),
-            &Some(order.header.client_order_id.clone()),
+            &Some(order.header.client_order_id),
         );
     }
 
@@ -3136,17 +3136,17 @@ mod tests {
         );
 
         let price = dec!(0.2);
-        let mut order = test_object
+        let mut order_snapshot = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::generate());
 
-        order.fills.filled_amount = order.amount() / dec!(2);
-        order.set_status(OrderStatus::Creating, Utc::now());
+        order_snapshot.fills.filled_amount = order_snapshot.amount() / dec!(2);
+        order_snapshot.set_status(OrderStatus::Creating, Utc::now());
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            order.header.side,
+            order_snapshot.header.side,
             price,
-            order.amount(),
+            order_snapshot.amount(),
         );
 
         assert!(test_object
@@ -3155,7 +3155,7 @@ mod tests {
             .is_some());
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+        let order = order_pool.add_snapshot_initial(&order_snapshot);
 
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
@@ -3164,7 +3164,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(&mut vec![order_ref].iter()),
+            Some(&mut vec![order].iter()),
         )
         .expect("in test");
 
@@ -3241,16 +3241,16 @@ mod tests {
             vec![dec!(0), dec!(11), dec!(1)],
         );
 
-        let mut order = test_object
+        let mut order_snapshot = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::generate());
-        order.set_status(OrderStatus::Created, Utc::now());
-        let price = dec!(1.5) * order.price();
+        order_snapshot.set_status(OrderStatus::Created, Utc::now());
+        let price = dec!(1.5) * order_snapshot.price();
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            order.header.side,
+            order_snapshot.header.side,
             price,
-            order.amount(),
+            order_snapshot.amount(),
         );
 
         assert!(test_object
@@ -3259,7 +3259,7 @@ mod tests {
             .is_some());
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+        let order = order_pool.add_snapshot_initial(&order_snapshot);
 
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
@@ -3268,7 +3268,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(&mut vec![order_ref].iter()),
+            Some(&mut vec![order].iter()),
         )
         .expect("in test");
 
@@ -3285,7 +3285,7 @@ mod tests {
                 .balance_manager_base
                 .get_balance_by_currency_code(BalanceManagerBase::btc(), price)
                 .expect("in test"),
-            dec!(11) - price * order.amount()
+            dec!(11) - price * order_snapshot.amount()
         );
 
         assert_eq!(
@@ -3353,17 +3353,17 @@ mod tests {
             vec![dec!(0), dec!(2), dec!(1)],
         );
 
-        let mut order = test_object
+        let mut order_snapshot = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::generate());
-        order.fills.filled_amount = order.amount() / dec!(2);
-        order.set_status(OrderStatus::Created, Utc::now());
+        order_snapshot.fills.filled_amount = order_snapshot.amount() / dec!(2);
+        order_snapshot.set_status(OrderStatus::Created, Utc::now());
         let price = dec!(0.2);
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            order.header.side,
+            order_snapshot.header.side,
             price,
-            order.amount(),
+            order_snapshot.amount(),
         );
 
         assert!(test_object
@@ -3371,13 +3371,13 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .is_some());
         test_object.balance_manager().approve_reservation(
-            order.header.reservation_id.expect("in test"),
-            &order.header.client_order_id,
-            order.amount(),
+            order_snapshot.header.reservation_id.expect("in test"),
+            &order_snapshot.header.client_order_id,
+            order_snapshot.amount(),
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+        let order = order_pool.add_snapshot_initial(&order_snapshot);
 
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
@@ -3386,7 +3386,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(&mut vec![order_ref].iter()),
+            Some(&mut vec![order].iter()),
         )
         .expect("in test");
 
@@ -3796,7 +3796,7 @@ mod tests {
             .create_order(OrderSide::Buy, ReservationId::generate());
         let order_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
-            Some(dec!(1.2) * order_1.price()),
+            dec!(1.2) * order_1.price(),
             dec!(1.3) * order_1.amount(),
             ReservationId::generate(),
         );
@@ -3926,29 +3926,29 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .expect("in test");
 
-        let mut order_1 = test_object.balance_manager_base.create_order_by_amount(
+        let mut order_snapshot_1 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
-            Some(dec!(0.2)),
+            dec!(0.2),
             order_1_amount,
             reservation_id,
         );
-        order_1.set_status(OrderStatus::Created, Utc::now());
+        order_snapshot_1.set_status(OrderStatus::Created, Utc::now());
 
         let mut _order_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
-            Some(dec!(1.2) * order_1.price()),
+            dec!(1.2) * order_snapshot_1.price(),
             order_2_amount,
             reservation_id,
         );
 
         test_object.balance_manager().approve_reservation(
             reservation_id,
-            &order_1.header.client_order_id,
-            order_1.amount(),
+            &order_snapshot_1.header.client_order_id,
+            order_snapshot_1.amount(),
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_1.clone())));
+        let order = order_pool.add_snapshot_initial(&order_snapshot_1);
 
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
@@ -3957,7 +3957,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(&mut vec![order_ref].iter()),
+            Some(&mut vec![order].iter()),
         )
         .expect("in test");
 
@@ -4051,43 +4051,43 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .expect("in test");
 
-        let mut order_1 = test_object
+        let mut order_snapshot_1 = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, reservation_id);
-        order_1.set_status(OrderStatus::Created, Utc::now());
+        order_snapshot_1.set_status(OrderStatus::Created, Utc::now());
 
-        let mut order_2 = test_object.balance_manager_base.create_order_by_amount(
+        let mut order_snapshot_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
-            Some(dec!(1.2) * order_1.price()),
-            dec!(1.3) * order_1.amount(),
+            dec!(1.2) * order_snapshot_1.price(),
+            dec!(1.3) * order_snapshot_1.amount(),
             reservation_id,
         );
-        order_2.set_status(OrderStatus::Creating, Utc::now());
+        order_snapshot_2.set_status(OrderStatus::Creating, Utc::now());
 
-        let mut order_3 = test_object.balance_manager_base.create_order_by_amount(
+        let mut order_snapshot_3 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
-            Some(dec!(1.1) * order_1.price()),
-            dec!(1.1) * order_1.amount(),
+            dec!(1.1) * order_snapshot_1.price(),
+            dec!(1.1) * order_snapshot_1.amount(),
             reservation_id,
         );
-        order_3.set_status(OrderStatus::Created, Utc::now());
+        order_snapshot_3.set_status(OrderStatus::Created, Utc::now());
 
         test_object.balance_manager().approve_reservation(
             reservation_id,
-            &order_1.header.client_order_id,
-            order_1.amount(),
+            &order_snapshot_1.client_order_id(),
+            order_snapshot_1.amount(),
         );
 
         test_object.balance_manager().approve_reservation(
             reservation_id,
-            &order_3.header.client_order_id,
-            order_3.amount(),
+            &order_snapshot_3.client_order_id(),
+            order_snapshot_3.amount(),
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref_1 = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_1.clone())));
-        let order_ref_2 = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_2.clone())));
-        let order_ref_3 = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_3.clone())));
+        let order_1 = order_pool.add_snapshot_initial(&order_snapshot_1);
+        let order_2 = order_pool.add_snapshot_initial(&order_snapshot_2);
+        let order_3 = order_pool.add_snapshot_initial(&order_snapshot_3);
 
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
@@ -4096,7 +4096,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(&mut vec![order_ref_1, order_ref_2, order_ref_3].iter()),
+            Some(&mut vec![order_1, order_2, order_3].iter()),
         )
         .expect("in test");
 

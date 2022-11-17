@@ -50,33 +50,27 @@ mod tests {
     use chrono::{Duration, Utc};
     use mmb_domain::market::CurrencyPair;
     use mmb_domain::order::pool::OrdersPool;
-    use mmb_domain::order::snapshot::{
-        ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderStatus, OrderType,
-    };
+    use mmb_domain::order::snapshot::{OrderHeader, OrderSide, OrderStatus, UserOrder};
     use rstest::rstest;
     use rust_decimal_macros::dec;
 
     #[rstest]
     #[timeout(std::time::Duration::from_millis(200))]
     pub fn test_cleanup_when_time_is_up() {
-        let k: ClientOrderId = "test".into();
-
         let pool = OrdersPool::new();
         let now = Utc::now();
-        let header = OrderHeader::new(
-            k,
+        let header = OrderHeader::with_user_order(
+            "test".into(),
             ExchangeAccountId::new("Binance", 0),
             CurrencyPair::from_codes("a".into(), "b".into()),
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(dec!(0.5)),
             dec!(1),
-            OrderExecutionType::None,
+            UserOrder::limit(dec!(0.5)),
             None,
             None,
             "".to_string(),
         );
-        let order_ref = pool.add_simple_initial(header, now, None);
+        let order_ref = pool.add_simple_initial(&header, now, None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
         // deadline has arrived
@@ -88,24 +82,20 @@ mod tests {
     #[rstest]
     #[timeout(std::time::Duration::from_millis(200))]
     pub fn test_cleanup_if_not_ehough_time_has_passed() {
-        let k: ClientOrderId = "test".into();
-
         let pool = OrdersPool::new();
         let now = Utc::now();
-        let header = OrderHeader::new(
-            k,
+        let header = OrderHeader::with_user_order(
+            "test".into(),
             ExchangeAccountId::new("Binance", 0),
             CurrencyPair::from_codes("a".into(), "b".into()),
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(dec!(0.5)),
             dec!(1),
-            OrderExecutionType::None,
+            UserOrder::limit(dec!(0.5)),
             None,
             None,
             "".to_string(),
         );
-        let order_ref = pool.add_simple_initial(header, now, None);
+        let order_ref = pool.add_simple_initial(&header, now, None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
         // deadline has not arrived
@@ -117,24 +107,20 @@ mod tests {
     #[rstest]
     #[timeout(std::time::Duration::from_millis(200))]
     pub fn test_cleanup_when_order_is_not_completed() {
-        let k: ClientOrderId = "test".into();
-
         let pool = OrdersPool::new();
         let now = Utc::now();
-        let header = OrderHeader::new(
-            k,
+        let header = OrderHeader::with_user_order(
+            "test".into(),
             ExchangeAccountId::new("Binance", 0),
             CurrencyPair::from_codes("a".into(), "b".into()),
-            OrderType::Limit,
             OrderSide::Buy,
-            Some(dec!(0.5)),
             dec!(1),
-            OrderExecutionType::None,
+            UserOrder::limit(dec!(0.5)),
             None,
             None,
             "".to_string(),
         );
-        pool.add_simple_initial(header, now, None);
+        pool.add_simple_initial(&header, now, None);
 
         let deadline = now + Duration::minutes(5);
         cleanup(&pool.cache_by_client_id, deadline);

@@ -15,7 +15,6 @@ use tokio::time::Duration;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::order::snapshot::Price;
 use mmb_utils::infrastructure::with_timeout;
-use parking_lot::RwLock;
 use std::sync::Arc;
 
 /// This struct needed for creating an orders in tests.
@@ -50,15 +49,13 @@ pub struct OrderProxy {
     pub init_time: DateTime,
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
-    pub order_type: OrderType,
+    pub user_order: UserOrder,
     pub side: OrderSide,
     pub amount: Amount,
-    pub execution_type: OrderExecutionType,
     pub reservation_id: Option<ReservationId>,
     pub signal_id: Option<String>,
     pub strategy_name: String,
 
-    pub price: Price,
     pub cancellation_token: CancellationToken,
     pub timeout: Duration,
 }
@@ -77,29 +74,25 @@ impl OrderProxy {
             init_time: Utc::now(),
             exchange_account_id,
             currency_pair,
-            order_type: OrderType::Limit,
+            user_order: UserOrder::maker_only(price),
             side: OrderSide::Buy,
             amount,
-            execution_type: OrderExecutionType::None,
             reservation_id: None,
             signal_id: None,
             strategy_name: strategy_name.unwrap_or_else(|| "OrderTest".to_owned()),
-            price,
             cancellation_token,
             timeout: Duration::from_secs(5),
         }
     }
 
-    pub fn make_header(&self) -> Arc<OrderHeader> {
-        OrderHeader::new(
+    pub fn make_header(&self) -> OrderHeader {
+        OrderHeader::with_user_order(
             self.client_order_id.clone(),
             self.exchange_account_id,
             self.currency_pair,
-            self.order_type,
             self.side,
-            Some(self.price),
             self.amount,
-            self.execution_type,
+            self.user_order,
             self.reservation_id,
             self.signal_id.clone(),
             self.strategy_name.clone(),
@@ -111,7 +104,7 @@ impl OrderProxy {
 
         with_timeout(
             self.timeout,
-            exchange.create_order(header, None, self.cancellation_token.clone()),
+            exchange.create_order(&header, None, self.cancellation_token.clone()),
         )
         .await
     }
@@ -134,8 +127,6 @@ impl OrderProxy {
             Utc::now(),
             Some(OrderRole::Maker),
             Some("1234567890".into()),
-            Default::default(),
-            Default::default(),
             OrderStatus::Created,
             None,
         );
@@ -149,18 +140,17 @@ impl OrderProxy {
             None,
         );
 
-        orders_pool.add_snapshot_initial(Arc::new(RwLock::new(snapshot)))
+        orders_pool.add_snapshot_initial(&snapshot)
     }
 }
 
 pub struct OrderProxyBuilder {
     exchange_account_id: ExchangeAccountId,
     currency_pair: CurrencyPair,
-    order_type: OrderType,
+    user_order: UserOrder,
     side: OrderSide,
     amount: Amount,
     strategy_name: String,
-    price: Price,
     cancellation_token: CancellationToken,
     timeout: Duration,
 }
@@ -176,10 +166,9 @@ impl OrderProxyBuilder {
         Self {
             exchange_account_id,
             currency_pair,
-            order_type: OrderType::Limit,
+            user_order: UserOrder::maker_only(price),
             strategy_name: strategy_name.unwrap_or_else(|| "OrderTest".to_owned()),
             cancellation_token: CancellationToken::default(),
-            price,
             amount,
             side: OrderSide::Buy,
             timeout: Duration::from_secs(5),
@@ -207,14 +196,12 @@ impl OrderProxyBuilder {
             init_time: Utc::now(),
             exchange_account_id: self.exchange_account_id,
             currency_pair: self.currency_pair,
-            order_type: self.order_type,
+            user_order: self.user_order,
             side: self.side,
             amount: self.amount,
-            execution_type: OrderExecutionType::None,
             reservation_id: None,
             signal_id: None,
             strategy_name: self.strategy_name,
-            price: self.price,
             cancellation_token: self.cancellation_token,
             timeout: self.timeout,
         }

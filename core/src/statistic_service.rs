@@ -150,10 +150,7 @@ pub struct StatisticService {
 
 impl StatisticService {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            statistic_service_state: Default::default(),
-            partially_filled_orders: Default::default(),
-        })
+        Default::default()
     }
 
     pub(crate) fn register_created_order(&self, market_account_id: MarketAccountId) {
