@@ -16,7 +16,7 @@ struct CancellationState {
 }
 
 /// Lightweight object for signalling about cancellation of operation
-/// Note: expected passing through methods by owning value with cloning if we need checking cancellation in many places
+/// NOTE: expected passing through methods by owning value with cloning if we need checking cancellation in many places
 #[derive(Default, Clone)]
 pub struct CancellationToken {
     state: Arc<CancellationState>,

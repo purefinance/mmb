@@ -466,25 +466,19 @@ impl BalanceManager {
         if let Some(orders_to_subtract) = orders {
             let mut applied_orders = HashSet::new();
             for order in orders_to_subtract {
-                let (order_type, client_order_id, reservation_id, status) = order.fn_ref(|x| {
-                    (
-                        x.header.order_type,
-                        x.header.client_order_id.clone(),
-                        x.header.reservation_id,
-                        x.props.status,
-                    )
-                });
+                let client_order_id = order.client_order_id();
 
+                let status = order.status();
                 if status.is_finished() || status == OrderStatus::Creating {
                     continue;
                 }
 
-                if order_type == OrderType::Market {
+                if order.header().order_type == OrderType::Market {
                     bail!("Clone doesn't support market orders because we need to know the price")
                 }
 
                 if applied_orders.insert(client_order_id.clone()) {
-                    let reservation_id = match reservation_id {
+                    let reservation_id = match order.header().reservation_id {
                         Some(reservation_id) => reservation_id,
                         None => continue,
                     };

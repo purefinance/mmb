@@ -38,8 +38,9 @@ impl Exchange {
         // TODO make MetricsRegistry.Metrics.Measure.Timer.Time(MetricsRegistry.Timers.WaitOrderFinishTimer,
         //     MetricsRegistry.Timers.CreateExchangeTimerTags(order.ExchangeId));
 
-        let (status, client_order_id) = order.fn_ref(|x| (x.status(), x.client_order_id()));
-        if status == OrderStatus::FailedToCreate {
+        let client_order_id = order.client_order_id();
+
+        if order.status() == OrderStatus::FailedToCreate {
             return Ok(order.clone());
         }
 
@@ -236,20 +237,16 @@ impl Exchange {
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<bool> {
-        let order_execution_type = order.fn_ref(|order| order.header.execution_type);
+        let order_execution_type = order.header().options.execution_type();
         if !self.features.order_features.maker_only
-            || order_execution_type != OrderExecutionType::MakerOnly
+            || order_execution_type != Some(OrderExecutionType::MakerOnly)
         {
             return Ok(false);
         }
 
         let exchange_account_id = self.exchange_account_id;
-        let client_order_id = &order.client_order_id();
-        log::info!(
-            "check_maker_only_order_status for exchange_account_id: {} and client order_id: {}",
-            exchange_account_id,
-            client_order_id
-        );
+        let client_order_id = order.client_order_id();
+        log::info!("check_maker_only_order_status for exchange_account_id: {exchange_account_id} and client order_id: {client_order_id}");
 
         let _ = self
             .timeout_manager
@@ -389,8 +386,7 @@ impl Exchange {
             )
             .await;
 
-        let (client_order_id, exchange_order_id) =
-            order.fn_ref(|o| (o.client_order_id(), o.exchange_order_id()));
+        let (client_order_id, exchange_order_id) = order.order_ids();
 
         log::info!("Checking request_type {request_type:?} in check_order_fills with client_order_id {client_order_id}, exchange_order_id {exchange_order_id:?}, on {}", self.exchange_account_id);
 
@@ -499,8 +495,8 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        let (status, client_order_id, exchange_order_id) =
-            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+        let client_order_id = order.client_order_id();
+        let (status, exchange_order_id) = order.fn_ref(|x| (x.status(), x.exchange_order_id()));
 
         if status.is_finished() {
             log::info!(
@@ -515,11 +511,10 @@ impl Exchange {
 
         let (tx, rx) = oneshot::channel();
         self.orders_finish_events
-            .entry(client_order_id)
+            .entry(client_order_id.clone())
             .or_insert(tx);
 
-        let (status, client_order_id, exchange_order_id) =
-            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+        let (status, exchange_order_id) = order.fn_ref(|x| (x.status(), x.exchange_order_id()));
 
         if status.is_finished() {
             log::trace!("Exiting create_order_finish_task because order's status turned {status:?} {client_order_id} {exchange_order_id:?} {}", self.exchange_account_id);

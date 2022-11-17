@@ -13,10 +13,9 @@ use itertools::Itertools;
 use mmb_domain::events::{ExchangeBalance, ExchangeBalancesAndPositions};
 use mmb_domain::exchanges::symbol::Symbol;
 use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, Price, UserOrder};
 use mmb_domain::order::snapshot::{
-    ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
-    OrderType, ReservationId,
+    ClientOrderId, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot, ReservationId,
 };
 use mmb_domain::position::DerivativePosition;
 use mockall_double::double;
@@ -242,26 +241,24 @@ impl BalanceManagerBase {
         order_side: OrderSide,
         reservation_id: ReservationId,
     ) -> OrderSnapshot {
-        self.create_order_by_amount(order_side, Some(dec!(0.2)), dec!(5), reservation_id)
+        self.create_order_by_amount(order_side, dec!(0.2), dec!(5), reservation_id)
     }
 
     pub fn create_order_by_amount(
         &mut self,
         order_side: OrderSide,
-        price: Option<Price>,
+        price: Price,
         amount: Amount,
         reservation_id: ReservationId,
     ) -> OrderSnapshot {
         let order_snapshot = OrderSnapshot {
-            header: OrderHeader::new(
+            header: OrderHeader::with_user_order(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
                 self.exchange_account_id_1,
                 self.symbol().currency_pair(),
-                OrderType::Limit,
                 order_side,
-                price,
                 amount,
-                OrderExecutionType::None,
+                UserOrder::limit(price),
                 Some(reservation_id),
                 None,
                 "balance_manager_base".into(),

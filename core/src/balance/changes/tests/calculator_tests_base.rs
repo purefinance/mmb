@@ -6,9 +6,9 @@ pub mod tests {
     use mmb_domain::exchanges::symbol::{Precision, Symbol};
     use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
     use mmb_domain::order::fill::{OrderFill, OrderFillType};
-    use mmb_domain::order::snapshot::{Amount, Price};
+    use mmb_domain::order::snapshot::{Amount, OrderOptions, Price};
     use mmb_domain::order::snapshot::{
-        ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot, OrderType,
+        ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
     };
     use mmb_utils::cancellation_token::CancellationToken;
     use mmb_utils::hashmap;
@@ -270,11 +270,10 @@ pub mod tests {
         ) -> OrderSnapshot {
             let mut order = OrderSnapshot::with_params(
                 ClientOrderId::unique_id(),
-                OrderType::Limit,
+                OrderOptions::limit(price),
                 None,
                 exchange_account_id,
                 currency_pair,
-                Some(price),
                 amount,
                 trade_side,
                 None,

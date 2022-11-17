@@ -49,8 +49,8 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<Option<CancelOrderResult>> {
-        let (status, client_order_id, exchange_order_id) =
-            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+        let client_order_id = order.client_order_id();
+        let (status, exchange_order_id) = order.fn_ref(|x| (x.status(), x.exchange_order_id()));
         match status {
             OrderStatus::Canceled => {
                 log::info!(

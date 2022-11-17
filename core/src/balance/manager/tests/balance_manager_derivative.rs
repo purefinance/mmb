@@ -220,13 +220,11 @@ impl BalanceManagerDerivative {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::sync::Arc;
 
     use chrono::Utc;
     use mmb_domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger;
-    use parking_lot::RwLock;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -1879,13 +1877,13 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .expect("in test");
 
-        let mut order = test_object
+        let mut order_snapshot = test_object
             .balance_manager_base
             .create_order(OrderSide::Sell, reservation_id);
-        order.set_status(OrderStatus::Created, Utc::now());
+        order_snapshot.set_status(OrderStatus::Created, Utc::now());
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+        let order = order_pool.add_snapshot_initial(&order_snapshot);
 
         // ApproveReservation wait on lock after Clone started
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
@@ -1895,7 +1893,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(&mut vec![order_ref].iter()),
+            Some(&mut vec![order].iter()),
         )
         .expect("in test");
 
@@ -1905,9 +1903,9 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager_base
-                .get_balance_by_currency_code(BalanceManagerBase::eth(), order.price())
+                .get_balance_by_currency_code(BalanceManagerBase::eth(), order_snapshot.price())
                 .expect("in test"),
-            (dec!(10) - order.amount() / order.price() / dec!(5)) * dec!(0.95)
+            (dec!(10) - order_snapshot.amount() / order_snapshot.price() / dec!(5)) * dec!(0.95)
         );
 
         //cloned BalancedManager should be without reservation
@@ -1917,7 +1915,7 @@ mod tests {
                 .get_balance_by_another_balance_manager_and_currency_code(
                     &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
-                    order.price()
+                    order_snapshot.price()
                 )
                 .expect("in test"),
             dec!(10) * dec!(0.95)
@@ -1966,7 +1964,7 @@ mod tests {
         );
 
         let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool.add_snapshot_initial(&order);
 
         // ApproveReservation wait on lock after Clone started
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(

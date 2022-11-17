@@ -35,10 +35,9 @@ use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::{ExchangeAccountId, MarketAccountId};
 use mmb_domain::order::event::OrderEventType;
 use mmb_domain::order::pool::OrderRef;
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, Price, UserOrder};
 use mmb_domain::order::snapshot::{
-    ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot, OrderStatus,
-    OrderType,
+    ClientOrderId, OrderHeader, OrderSide, OrderSnapshot, OrderStatus,
 };
 use mmb_utils::cancellation_token::CancellationToken;
 
@@ -195,7 +194,7 @@ impl DispositionExecutor {
             }
             ExchangeEvent::OrderEvent(order_event) => {
                 let order = &order_event.order;
-                if order.fn_ref(|s| s.header.order_type.is_external_order()) {
+                if order.order_type().is_external_order() {
                     return Ok(());
                 }
 
@@ -204,11 +203,7 @@ impl DispositionExecutor {
                     OrderEventType::CreateOrderFailed => {
                         let client_order_id = order.client_order_id();
                         log::trace!("Started handling event CreateOrderFailed {client_order_id} in DispositionExecutor");
-                        let price_slot = self.get_price_slot(order);
-                        let price_slot = match price_slot {
-                            None => return Ok(()),
-                            Some(v) => v,
-                        };
+                        let Some(price_slot) = self.get_price_slot(order) else { return Ok(()); };
 
                         self.finish_order(order, price_slot)?;
                         log::trace!("Finished handling event CreateOrderFailed {client_order_id} in DispositionExecutor");
@@ -216,7 +211,7 @@ impl DispositionExecutor {
                     OrderEventType::OrderFilled { ref cloned_order } => {
                         log::trace!(
                             "Started handling event OrderFilled {} in DispositionExecutor",
-                            cloned_order.header.client_order_id
+                            cloned_order.client_order_id()
                         );
                         let price_slot = self.get_price_slot(order);
                         if let Some(price_slot) = price_slot {
@@ -413,10 +408,10 @@ impl DispositionExecutor {
             composite_order_ref
                 .orders
                 .values()
-                .map(|or| or.order.fn_ref(|x| DisplaySmallOrder {
-                    price: x.price(),
-                    amount: x.amount()
-                }))
+                .map(|or| DisplaySmallOrder {
+                    price: or.order.price(),
+                    amount: or.order.amount(),
+                })
                 .join(", ")
         ));
 
@@ -703,15 +698,13 @@ impl DispositionExecutor {
 
         *price_slot.estimating.borrow_mut() = Some(Box::new(new_estimating.clone()));
 
-        let order_header = OrderHeader::new(
+        let order_header = OrderHeader::with_user_order(
             new_client_order_id.clone(),
             self.exchange_account_id,
             self.symbol.currency_pair(),
-            OrderType::Limit,
             new_disposition.side(),
-            Some(new_disposition.price()),
             new_order_amount,
-            OrderExecutionType::MakerOnly,
+            UserOrder::maker_only(new_disposition.price()),
             Some(reservation_id),
             None,
             new_estimating.strategy_name.clone(),
@@ -720,7 +713,7 @@ impl DispositionExecutor {
         let exchange = self.exchange();
 
         let new_order = exchange.orders.add_simple_initial(
-            order_header.clone(),
+            &order_header,
             now,
             exchange.exchange_client.get_initial_extension_data(),
         );
@@ -744,7 +737,7 @@ impl DispositionExecutor {
                 log::trace!("Begin create_order {new_client_order_id}");
 
                 exchange
-                    .create_order(order_header, Some(requests_group_id), cancellation_token)
+                    .create_order(&order_header, Some(requests_group_id), cancellation_token)
                     .await?;
 
                 log::trace!("Finished create_order {new_client_order_id}");
@@ -809,7 +802,7 @@ impl DispositionExecutor {
     }
 
     fn get_price_slot(&self, order: &OrderRef) -> Option<&PriceSlot> {
-        let header = order.fn_ref(|x| x.header.clone());
+        let header = order.header();
         let price_slot = self.orders_state.by_side[header.side].find_price_slot(order);
         if price_slot.is_some() {
             return price_slot;
@@ -836,21 +829,18 @@ impl DispositionExecutor {
     }
 
     fn unreserve_order_amount(&self, order: &OrderRef, _price_slot: &PriceSlot) {
-        let (reservation_id, client_order_id, amount) = order.fn_ref(|x| {
-            (
-                x.header.reservation_id,
-                x.header.client_order_id.clone(),
-                x.header.amount,
-            )
-        });
+        let client_order_id = order.client_order_id();
+        let reservation_id = order.header().reservation_id;
 
-        let reservation_id = reservation_id.expect("InternalEventsLoop: ReservationId is None");
+        let reservation_id = reservation_id
+            .expect("DispositionExecutor::unreserve_order_amount(): ReservationId is None");
+
         self.engine_ctx
             .balance_manager
             .lock()
-            .unreserve_by_client_order_id(reservation_id, client_order_id.clone(), amount)
+            .unreserve_by_client_order_id(reservation_id, client_order_id.clone(), order.amount())
             .with_expect(|| {
-                format!("InternalEventsLoop: failed to unreserve order {client_order_id:?}")
+                format!("DispositionExecutor::unreserve_order_amount(): failed to unreserve order {client_order_id:?}")
             });
     }
 
@@ -950,12 +940,9 @@ fn get_cancelling_orders<'a>(
     for record in sorted_order_records {
         let order = &mut record.order;
 
-        let remaining_order_amount = order.fn_ref(|x| {
-            if order.is_finished() {
-                dec!(0)
-            } else {
-                x.amount() - x.filled_amount()
-            }
+        let remaining_order_amount = order.fn_ref(|x| match x.is_finished() {
+            true => dec!(0),
+            false => order.amount() - x.filled_amount(),
         });
 
         cancelling_orders.push(record);

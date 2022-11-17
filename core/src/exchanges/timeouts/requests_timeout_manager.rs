@@ -233,8 +233,8 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         cancellation_token: CancellationToken,
     ) -> (JoinHandle<FutureOutcome>, DateTime, Duration) {
-        // Note: calculation doesn't support request cancellation
-        // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
+        // NOTE: calculation doesn't support request cancellation
+        // NOTE: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
         // Algorithm:
         // 1. We check: can we do request now

@@ -59,7 +59,7 @@ pub async fn start_visualization_data_saving(
                         OrderEventType::CreateOrderSucceeded
                         | OrderEventType::OrderCompleted { .. }
                         | OrderEventType::CancelOrderSucceeded => {
-                            Some(order_event.order.fn_ref(|o| o.market_account_id()))
+                            Some(order_event.order.header().market_account_id())
                         }
                         OrderEventType::OrderFilled { cloned_order } => {
                             save_transaction(
@@ -92,27 +92,27 @@ pub async fn start_visualization_data_saving(
 
 fn save_transaction(
     ctx: &EngineContext,
-    order: &OrderSnapshot,
+    order_snapshot: &OrderSnapshot,
     status: TransactionStatus,
     strategy_name: String,
 ) -> Result<()> {
     let mut transaction = TransactionSnapshot::new(
-        order.market_id(),
-        order.side(),
-        order.source_price(),
-        order.amount(),
+        order_snapshot.market_id(),
+        order_snapshot.side(),
+        order_snapshot.header.source_price,
+        order_snapshot.amount(),
         status,
         strategy_name,
     );
 
-    let exchange_order_id = order
+    let exchange_order_id = order_snapshot
         .props
         .exchange_order_id
         .as_ref()
         .expect("`exchange_order_id` must be set before saving transaction")
         .clone();
 
-    let fill = order
+    let fill = order_snapshot
         .fills
         .fills
         .last()
@@ -120,7 +120,7 @@ fn save_transaction(
 
     transaction.trades.push(TransactionTrade {
         exchange_order_id,
-        exchange_id: order.header.exchange_account_id.exchange_id,
+        exchange_id: order_snapshot.header.exchange_account_id.exchange_id,
         price: Some(fill.price()),
         amount: fill.amount(),
         side: fill.side(),
